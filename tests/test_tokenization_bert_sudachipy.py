@@ -18,13 +18,13 @@ import shutil
 import tempfile
 import unittest
 
-from bert_sudachipy.tokenization_bert_sudachipy import (
+from chitra.tokenization_bert_sudachipy import (
     VOCAB_FILES_NAMES,
     WORD_FORM_TYPES,
     BertSudachipyTokenizer,
     WordpieceTokenizer
 )
-from bert_sudachipy.sudachipy_word_tokenizer import SudachipyWordTokenizer
+from chitra.sudachipy_word_tokenizer import SudachipyWordTokenizer
 
 
 class BertSudachipyTokenizationTest(unittest.TestCase):
