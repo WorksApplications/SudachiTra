@@ -1,0 +1,12 @@
+* text=auto
+
+*.in text
+*.md text
+*.py text
+*.txt text
+
+*.pyc binary
+*.pyd binary
+*.pyo binary
+*.pyw binary
+*.dic binary
