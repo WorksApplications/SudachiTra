@@ -15,7 +15,7 @@
 from setuptools import find_packages, setup
 
 setup(
-    name="bert_sudachipy",
+    name="chiTra",
     use_scm_version=True,
     setup_requires=["setuptools_scm"],
     description="Japanese tokenizer for Transformers.",
@@ -26,7 +26,6 @@ setup(
     author="Works Applications",
     author_email="sudachi@worksap.co.jp",
     packages=find_packages(exclude=['tests']),
-    # package_data={"": []},
     install_requires=[
         "transformers>=4.7.0",
         "sudachipy>=0.5.2",

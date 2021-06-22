@@ -1,8 +1,8 @@
 # chiTra
 
 [![](https://img.shields.io/badge/python-3.6+-blue.svg)](https://www.python.org/downloads/release/python-360/)
-[![test](https://github.com/t-yamamura/bert_sudachipy/actions/workflows/test.yaml/badge.svg)](https://github.com/t-yamamura/bert_sudachipy/actions/workflows/test.yaml)
-[![](https://img.shields.io/github/license/t-yamamura/bert_sudachipy.svg)](https://github.com/t-yamamura/bert_sudachipy/blob/main/LICENSE)
+[![test](https://github.com/WorksApplications/chiTra/actions/workflows/test.yaml/badge.svg)](https://github.com/WorksApplications/chiTra/actions/workflows/test.yaml)
+[![](https://img.shields.io/github/license/WorksApplications/chiTra.svg)](https://github.com/WorksApplications/chiTra/blob/main/LICENSE)
 
 chiTra is a Japanese tokenizer for [Transformers](https://github.com/huggingface/transformers).
 
@@ -40,7 +40,7 @@ $ pip install sudachidict_small sudachidict_full
 
 ## Pretraining
 
-Please refer to [pretraining/bert/README.md](https://github.com/t-yamamura/bert_sudachipy/tree/main/pretraining/bert).
+Please refer to [pretraining/bert/README.md](https://github.com/WorksApplications/chiTra/tree/main/pretraining/bert).
 
 
 ## Roadmap

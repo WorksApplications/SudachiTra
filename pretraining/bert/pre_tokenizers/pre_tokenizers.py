@@ -2,8 +2,8 @@ import textspan
 from tokenizers import NormalizedString, PreTokenizedString
 from typing import List, Optional
 
-from bert_sudachipy.sudachipy_word_tokenizer import SudachipyWordTokenizer
-from bert_sudachipy.tokenization_bert_sudachipy import WORD_FORM_TYPES
+from chitra.sudachipy_word_tokenizer import SudachipyWordTokenizer
+from chitra.tokenization_bert_sudachipy import WORD_FORM_TYPES
 
 
 class SudachipyPreTokenizer(SudachipyWordTokenizer):

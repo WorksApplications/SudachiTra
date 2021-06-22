@@ -29,7 +29,7 @@ import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
-from bert_sudachipy.tokenization_bert_sudachipy import BertSudachipyTokenizer
+from chitra.tokenization_bert_sudachipy import BertSudachipyTokenizer
 
 FLAGS = flags.FLAGS
 
