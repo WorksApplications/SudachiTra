@@ -145,4 +145,3 @@ notebooks_for_dev/
 
 # pretraining data
 pretraining/bert/datasets/
-pretraining/bert/models/
