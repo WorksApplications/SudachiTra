@@ -14,6 +14,9 @@
 
 from typing import Optional
 
+from sudachipy.tokenizer import Tokenizer
+from sudachipy.dictionary import Dictionary
+
 
 class SudachipyWordTokenizer:
     """Runs tokenization with SudachiPy."""
@@ -40,16 +43,6 @@ class SudachipyWordTokenizer:
                 Sudachi dictionary type to be used for tokenization.
                 "small", "core", or "full" can be specified.
         """
-
-        try:
-            from sudachipy.tokenizer import Tokenizer
-            from sudachipy.dictionary import Dictionary
-        except ModuleNotFoundError as error:
-            raise error.__class__(
-                "You need to install SudachiPy to use SudachipyTokenizer. "
-                "See https://github.com/WorksApplications/SudachiPy for installation. "
-            )
-
         split_mode = split_mode.upper()
         if split_mode == "C":
             self.split_mode = Tokenizer.SplitMode.C
