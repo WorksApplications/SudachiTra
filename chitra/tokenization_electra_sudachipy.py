@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .tokenization_bert_sudachipy import BertSudachipyTokenizer
+from . import BertSudachipyTokenizer
 
 
 VOCAB_FILES_NAMES = {"vocab_file": "vocab.txt"}

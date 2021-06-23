@@ -21,7 +21,7 @@ from transformers.models.bert_japanese.tokenization_bert_japanese import Charact
 from transformers.models.bert.tokenization_bert import WordpieceTokenizer
 from transformers.tokenization_utils import PreTrainedTokenizer
 
-from .sudachipy_word_tokenizer import SudachipyWordTokenizer
+from . import SudachipyWordTokenizer
 
 
 VOCAB_FILES_NAMES = {"vocab_file": "vocab.txt"}
