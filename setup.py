@@ -27,7 +27,7 @@ setup(
     author_email="sudachi@worksap.co.jp",
     packages=find_packages(exclude=['tests']),
     install_requires=[
-        "transformers>=4.7.0",
+        "transformers>=4.6.1",
         "sudachipy>=0.5.2",
         "sudachidict_core>=20210608"
     ],
