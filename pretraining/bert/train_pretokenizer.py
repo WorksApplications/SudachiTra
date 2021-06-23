@@ -17,8 +17,7 @@ import os
 from glob import glob
 from tokenizers.normalizers import NFKC, Sequence
 
-from pretraining.bert.pre_tokenizers.japanese_bert_wordpiece_tokenizer import JapaneseBertWordPieceTokenizer
-from pretraining.bert.pre_tokenizers.pre_tokenizers import SudachipyPreTokenizer
+from chitra.pretokenizer import JapaneseBertWordPieceTokenizer, SudachipyPreTokenizer
 
 
 def main():

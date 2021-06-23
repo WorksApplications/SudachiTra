@@ -1,7 +1,8 @@
 # for pretraining bert
 bunkai~=1.3.0
+logzero~=1.7.0
+progressbar~=2.5
 pytextspan>=0.5.4
+tensorflow>=2.5.0
 tensorflow_datasets>=4.3.0
 tokenizers>=0.10.3
-progressbar~=2.5
-tensorflow>=2.5.0
