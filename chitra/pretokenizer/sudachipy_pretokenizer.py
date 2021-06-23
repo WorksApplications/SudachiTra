@@ -2,8 +2,8 @@ import textspan
 from tokenizers import NormalizedString, PreTokenizedString
 from typing import List, Optional
 
-from chitra import SudachipyWordTokenizer
-from chitra.tokenization_bert_sudachipy import WORD_FORM_TYPES
+from .. import SudachipyWordTokenizer
+from ..tokenization_bert_sudachipy import WORD_FORM_TYPES
 
 
 class SudachipyPreTokenizer(SudachipyWordTokenizer):
@@ -16,6 +16,7 @@ class SudachipyPreTokenizer(SudachipyWordTokenizer):
     ):
         super().__init__(split_mode=split_mode, dict_type=dict_type, **kwargs)
         self.word_form_type = word_form_type
+        self.word_formatter = WORD_FORM_TYPES[self.word_form_type] if self.word_form_type != "surface" else None
 
     def pre_tokenize(self, pretok: PreTokenizedString):
         pretok.split(self.sudachi_split)
@@ -33,7 +34,6 @@ class SudachipyPreTokenizer(SudachipyWordTokenizer):
             raise ValueError(len(morphs), len(tokens), len(normalized_strings), tokens, normalized_strings)
 
         if self.word_form_type != 'surface':
-            word_formatter = WORD_FORM_TYPES[self.word_form_type]
-            _ = [ns.replace(ns.normalized, word_formatter(m)) for ns, m in zip(normalized_strings, morphs)]
+            _ = [ns.replace(ns.normalized, self.word_formatter(m)) for ns, m in zip(normalized_strings, morphs)]
 
         return normalized_strings
