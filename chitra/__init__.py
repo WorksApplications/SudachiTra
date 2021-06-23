@@ -11,3 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from .sudachipy_word_tokenizer import SudachipyWordTokenizer
+from .tokenization_bert_sudachipy import BertSudachipyTokenizer
+from .tokenization_electra_sudachipy import ElectraSudachipyTokenizer

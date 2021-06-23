@@ -13,7 +13,7 @@ chiTra stands for Suda**chi** for **Tra**nsformers.
 
 ```python
 >>> from transformers import BertModel
->>> from chitra.tokenization_bert_sudachipy import BertSudachipyTokenizer
+>>> from chitra import BertSudachipyTokenizer
 
 >>> tokenizer = BertSudachipyTokenizer.from_pretrained('chitra-bert-base-japanese-sudachi')
 >>> model = BertModel.from_pretrained('chitra-bert-base-japanese-sudachi')
