@@ -62,8 +62,8 @@ def main():
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='specify target dataset')
-    parser.add_argument('-t', '--target', choices=['train', 'validation', 'test'], help='target dataset')
+    parser = argparse.ArgumentParser(description='Download and parse target dataset.')
+    parser.add_argument('-t', '--target', choices=['train', 'validation', 'test'], help='Target dataset.')
 
     args = parser.parse_args()
 

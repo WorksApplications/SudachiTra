@@ -47,7 +47,7 @@ def main():
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Trainer of part-of-speech substitution tokenizer')
+    parser = argparse.ArgumentParser(description='Trainer of part-of-speech substitution tokenizer.')
 
     # Input
     parser.add_argument('-f', '--input_file', default='',

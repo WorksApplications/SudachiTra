@@ -123,12 +123,13 @@ def pos_substitution_format(token: Morpheme) -> str:
         str: POS tag.
     """
     hierarchy = token.part_of_speech()
-    pos = f"[{hierarchy[0]}"
+    pos = [hierarchy[0]]
     for p in hierarchy[1:]:
         if p == "*":
             break
-        pos += "-" + p
-    return pos + "]"
+        pos.append(p)
+
+    return "[{}]".format("-".join(pos))
 
 
 class BertSudachipyTokenizer(PreTrainedTokenizer):
