@@ -47,10 +47,10 @@ def main():
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='split dataset')
+    parser = argparse.ArgumentParser(description='Split dataset.')
 
-    parser.add_argument('-i', '--input_file', help='input file to be splitted (corpus splitted by paragraph)')
-    parser.add_argument('--line_per_file', help='max number of lines per file')
+    parser.add_argument('-i', '--input_file', help='Input file to be splitted (corpus splitted by paragraph).')
+    parser.add_argument('--line_per_file', help='Max number of lines per file.')
 
     args = parser.parse_args()
 

@@ -52,7 +52,7 @@ def main():
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Trainer of wordpiece tokenizer')
+    parser = argparse.ArgumentParser(description='Trainer of wordpiece tokenizer.')
 
     # input
     parser.add_argument('-f', '--input_file', default='',
