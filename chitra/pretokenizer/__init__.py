@@ -14,4 +14,4 @@
 
 from .japanese_bert_wordpiece_tokenizer import JapaneseBertWordPieceTokenizer
 from .pos_substitution_tokenizer import PartOfSpeechSubstitutionTokenizer
-from .sudachipy_pretokenizer import JapanesePreTokenizer, SudachipyPreTokenizer
+from .sudachipy_pretokenizer import CustomPreTokenizer, SudachipyPreTokenizer

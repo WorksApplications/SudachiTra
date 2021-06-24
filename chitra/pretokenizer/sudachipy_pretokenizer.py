@@ -20,7 +20,7 @@ from .. import SudachipyWordTokenizer
 from ..tokenization_bert_sudachipy import WORD_FORM_TYPES
 
 
-class JapanesePreTokenizer:
+class CustomPreTokenizer:
     def custom_split(self, i: int, normalized_string: NormalizedString) -> List[NormalizedString]:
         """
         Tokenizes the input string and returns list of tokens.
@@ -56,7 +56,7 @@ class JapanesePreTokenizer:
         return [normalized_string[start:end] for token_span in token_spans for start, end in token_span]
 
 
-class SudachipyPreTokenizer(SudachipyWordTokenizer, JapanesePreTokenizer):
+class SudachipyPreTokenizer(SudachipyWordTokenizer, CustomPreTokenizer):
     def __init__(
         self,
         split_mode: Optional[str] = "C",

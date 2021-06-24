@@ -20,8 +20,11 @@ from tokenizers.processors import BertProcessing
 from tokenizers.implementations import BertWordPieceTokenizer
 from tokenizers.implementations.base_tokenizer import BaseTokenizer
 
-from typing import Dict, Iterator, List, Optional, Type, Union
-from . import JapanesePreTokenizer
+from typing import Dict, Iterator, List, Optional, TypeVar, Union
+from . import CustomPreTokenizer
+
+
+CPT = TypeVar('CPT', bound=CustomPreTokenizer)
 
 
 class JapaneseBertWordPieceTokenizer(BaseTokenizer):
@@ -149,12 +152,12 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         )
         self._tokenizer.train_from_iterator(iterator, trainer=trainer)
 
-    def set_pre_tokenizer(self, custom_pre_tokenizer: Type[JapanesePreTokenizer]):
+    def set_pre_tokenizer(self, custom_pre_tokenizer: CPT):
         """
         Sets the custom tokenizer as pre-tokenizer.
 
         Args:
-            custom_pre_tokenizer (Type[JapanesePreTokenizer]): Custom tokenizer that implements `custom_split`.
+            custom_pre_tokenizer (CPT): Custom tokenizer that implements `custom_split`.
         """
         self.pre_tokenizer = PreTokenizer.custom(custom_pre_tokenizer)
 
