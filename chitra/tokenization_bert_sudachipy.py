@@ -157,11 +157,18 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
             **kwargs
     ):
         super().__init__(
+            do_lower_case=False,
+            do_word_tokenize=True,
+            do_subword_tokenize=True,
+            word_tokenizer_type="sudachipy",
+            subword_tokenizer_type="pos_substitution",
             unk_token=unk_token,
             sep_token=sep_token,
             pad_token=pad_token,
             cls_token=cls_token,
             mask_token=mask_token,
+            word_form_type="surface",
+            sudachipy_kwargs=None,
             **kwargs,
         )
 
