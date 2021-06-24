@@ -52,23 +52,62 @@ The following word forms are available:
 * `dictionary_and_surface`
 * `normalized_and_surface`
 
+A implements three kinds of subword tokenizers:
+
+* `WordPiece`
+* `Character`
+* `POS Substitution (part-of-speech substitution)`
+
+#### WordPiece
+
 We used WordPiece to obtain subwords.
 We used an implementation of WordPiece in [Tokenizers](https://github.com/huggingface/tokenizers).
 
 ```shell script
-$ python train_pretokenizer.py \
+$ python train_wordpiece_tokenizer.py \
 --input_file datasets/corpus_splitted_by_paragraph/ja_wiki40b_*.paragraph.txt \
---dict_type core
---split_mode C
---word_form_type normalized
---output_dir ja_wiki40b_*_CoreDic_normalized_unit-C
---config_name ja_wiki40b_*_CoreDic_normalized_unit-C_config.json
---vocab_prefix ja_wiki40b_*_CoreDic_normalized_unit-C
+--vocab_size 32000\
+--limit_alphabet 5000\
+--dict_type core \
+--split_mode C \
+--word_form_type normalized \
+--output_dir tokenizers/ja_wiki40b/wordpiece/*_CoreDic_normalized_unit-C \
+--config_name config.json \
+--vocab_prefix wordpiece
+```
+
+#### Character
+
+You can get a vocabulary for `Character` by extracting only the characters from the vocabulary created by `Wordpiece` tokenization.
+
+```shell script
+# e.g. #characters(5,000) + #special_tokens(5) = 5,005
+$ OUTPUT_DIR="tokenizers/ja_wiki40b/character/*_CoreDic_normalized_unit-C"
+$ mkdir -p $OUTPUT_DIR
+$ head -n 5005 tokenizers/ja_wiki40b/wordpiece/*_CoreDic_normalized_unit-C/wordpiece-vocab.txt > $OUTPUT_DIR/vocab.txt
+```
+
+#### POS Substitution (part-of-speech substitution)
+
+`POS Substitution` is a method using part-of-speech tags to reduce a vocabulary size.
+In `POS Substitution`, instead of using a subword tokenizer, low frequency words are replaced by part-of-speech tags.
+Finally, only part-of-speech tags that do not appear in a training corpus are treated as unknown words.
+
+
+```shell script
+$ python train_pos_substitution_tokenizer.py \
+--input_file datasets/corpus_splitted_by_paragraph/ja_wiki40b_*.paragraph.txt \
+--token_size 32000 \
+--limit_character 5000 \
+--dict_type core \
+--split_mode C \
+--word_form_type normalized \
+--output_file tokenizers/ja_wiki40b/pos_substitution/*_CoreDic_normalized_unit-C/vocab.txt 
 ```
 
 ### 3.Creating data for pretraining
 
-First, you need to split dataset into multiple files.
+We recommend to split dataset into multiple files.
 
 ```shell script
 # splits wiki40b into multiple files
@@ -77,7 +116,22 @@ $ python data_split.py \
 --line_per_file 760000
 ```
 
-Please refer to `./run_create_pretraining_data.sh` to create pretraining data.
+```shell script
+$ cd ../../
+$ WORK_DIR="pretraining/bert"
+$ seq -f %02g 1 8|xargs -L 1 -I {} -P 8 python3 $WORK_DIR/create_pretraining_data.py \
+--input_file $WORK_DIR/datasets/corpus_splitted_by_paragraph/ja_wiki40b_*.paragraph{}.txt \
+--output_file $WORK_DIR/bert/pretraining_*_{}.tf_record \
+--vocab_file $WORK_DIR/tokenizers/ja_wiki40b/wordpiece/*_CoreDic_normalized_unit-C/wordpiece-vocab.txt \
+--tokenizer_type wordpiece \
+--word_form_type normalized \
+--split_mode C \
+--sudachi_dic_type core \
+--do_whole_word_mask \
+--max_seq_length 512 \
+--max_predictions_per_seq 80 \
+--dupe_factor 10
+```
 
 ### 4.Training
 
@@ -88,9 +142,9 @@ $ sudo pip3 install -r models/official/requirements.txt
 $ export PYTHONPATH="$PYTHONPATH:./models"
 $ cd models/
 $ WORK_DIR="../pretraining/bert"; py official/nlp/bert/run_pretraining.py \
---input_files="$WORK_DIR/models/pretraining_small_*record" \
---model_dir="$WORK_DIR/models/" \
---bert_config_file="$WORK_DIR/models/small_config.json" \
+--input_files="$WORK_DIR/bert/pretraining_*_*.tf_record" \
+--model_dir="$WORK_DIR/bert_small/" \
+--bert_config_file="$WORK_DIR/bert_small/bert_small_config.json" \
 --max_seq_length=512 \
 --max_predictions_per_seq=80 \
 --train_batch_size=256 \
@@ -104,9 +158,9 @@ $ WORK_DIR="../pretraining/bert"; py official/nlp/bert/run_pretraining.py \
 ### 5.Converting a model to pytorch format
 
 ```shell script
-cd ../pretraining/bert/
-python convert_original_tf2_checkpoint_to_pytorch.py \
---tf_checkpoint_path ./models/ \
---config_file ./models/small_config.json \
---pytorch_dump_path ./models/pytorch_model.bin
+$ cd ../pretraining/bert/
+$ python convert_original_tf2_checkpoint_to_pytorch.py \
+--tf_checkpoint_path ./bert_small/ \
+--config_file ./bert_small/bert_small_config.json \
+--pytorch_dump_path ./bert/bert_small/pytorch_model.bin
 ```
