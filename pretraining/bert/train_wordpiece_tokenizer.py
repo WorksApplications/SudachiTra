@@ -40,14 +40,8 @@ def main():
         limit_alphabet=args.limit_alphabet
     )
 
-    normalizer = Sequence([
-        NFKC(),
-    ])
-
     wp_tokenizer = JapaneseBertWordPieceTokenizer()
-    wp_tokenizer.normalizer = normalizer
 
-    # split_mode = get_split_mode(args.split_mode)
     sudachi_pre_tokenizer = SudachipyPreTokenizer(
         split_mode=args.split_mode,
         dict_type=args.dict_type,
