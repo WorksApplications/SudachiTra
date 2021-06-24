@@ -20,7 +20,8 @@ from tokenizers.processors import BertProcessing
 from tokenizers.implementations import BertWordPieceTokenizer
 from tokenizers.implementations.base_tokenizer import BaseTokenizer
 
-from typing import Optional, List, Union, Dict, Iterator
+from typing import Dict, Iterator, List, Optional, Type, Union
+from . import JapanesePreTokenizer
 
 
 class JapaneseBertWordPieceTokenizer(BaseTokenizer):
@@ -148,12 +149,34 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         )
         self._tokenizer.train_from_iterator(iterator, trainer=trainer)
 
-    def set_pre_tokenizer(self, custom_pre_tokenizer):
+    def set_pre_tokenizer(self, custom_pre_tokenizer: Type[JapanesePreTokenizer]):
+        """
+        Sets the custom tokenizer as pre-tokenizer.
+
+        Args:
+            custom_pre_tokenizer (Type[JapanesePreTokenizer]): Custom tokenizer that implements `custom_split`.
+        """
         self.pre_tokenizer = PreTokenizer.custom(custom_pre_tokenizer)
 
-    def save(self, output_tokenizer_path, pretty=False):
+    def save(self, output_tokenizer_path: str, pretty: bool = False):
+        """
+        Saves a config file of the tokenizer.
+
+        Notes: To serialize tokenizer, puts dummy pre-tokenizer.
+
+        Args:
+            output_tokenizer_path (str): Output file path to be saved a config file of tokenizer.
+            pretty (bool): Json format type.
+        """
         self.pre_tokenizer = BertPreTokenizer()  # dummy
         super().save(output_tokenizer_path, pretty=pretty)
 
-    def save_vocab(self, output_dir, prefix):
+    def save_vocab(self, output_dir: str, prefix: str):
+        """
+        Save the vocabulary.
+
+        Args:
+            output_dir (str): The path to the target directory in which to save the various files.
+            prefix (str): An optional prefix, used to prefix each file name
+        """
         self.model.save(output_dir, prefix)

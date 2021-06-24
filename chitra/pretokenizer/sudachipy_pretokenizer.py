@@ -20,7 +20,43 @@ from .. import SudachipyWordTokenizer
 from ..tokenization_bert_sudachipy import WORD_FORM_TYPES
 
 
-class SudachipyPreTokenizer(SudachipyWordTokenizer):
+class JapanesePreTokenizer:
+    def custom_split(self, i: int, normalized_string: NormalizedString) -> List[NormalizedString]:
+        """
+        Tokenizes the input string and returns list of tokens.
+
+        Please override this function with your custom tokenizer.
+        Example. https://github.com/huggingface/tokenizers/blob/b24a2fc/bindings/python/examples/custom_components.py
+
+        Args:
+            i (int): Index.
+            normalized_string (NormalizedString): Input string.
+
+        Returns:
+            List[NormalizedString]: List of normalized_strings.
+        """
+        raise NotImplementedError()
+
+    def pre_tokenize(self, pretok: PreTokenizedString):
+        pretok.split(self.custom_split)
+
+    @staticmethod
+    def split_normalized_string(normalized_string: NormalizedString, tokens: List[str]) -> List[NormalizedString]:
+        """
+        Splits normalized_string by tokens.
+
+        Args:
+            normalized_string (NormalizedString): Input string.
+            tokens (List[str]): List of surface words in a sentence.
+
+        Returns:
+            List[NormalizedString]: List of normalized_strings.
+        """
+        token_spans = textspan.get_original_spans(tokens, str(normalized_string).strip())
+        return [normalized_string[start:end] for token_span in token_spans for start, end in token_span]
+
+
+class SudachipyPreTokenizer(SudachipyWordTokenizer, JapanesePreTokenizer):
     def __init__(
         self,
         split_mode: Optional[str] = "C",
@@ -28,19 +64,37 @@ class SudachipyPreTokenizer(SudachipyWordTokenizer):
         word_form_type: Optional[str] = "surface",
         **kwargs
     ):
-        super().__init__(split_mode=split_mode, dict_type=dict_type, **kwargs)
+        """
+        Constructs a SudachipyPreTokenizer.
+
+        Args:
+            split_mode (:obj:`str`, `optional`, defaults to :obj:`"C"`):
+                The mode of splitting.
+                "A", "B", or "C" can be specified.
+            dict_type (:obj:`str`, `optional`, defaults to :obj:`"core"`):
+                Sudachi dictionary type to be used for tokenization.
+                "small", "core", or "full" can be specified.
+            word_form_type (:obj:`str`, `optional`, defaults to :obj:`"surface"`):
+                Word form type for each morpheme.
+                "surface", "dictionary", "normalized", "dictionary_and_surface", or "normalized_and_surface" can be specified.
+            **kwargs:
+                Sudachi dictionary parameters.
+        """
+        SudachipyWordTokenizer.__init__(split_mode=split_mode, dict_type=dict_type, **kwargs)
         self.word_form_type = word_form_type
         self.word_formatter = WORD_FORM_TYPES[self.word_form_type] if self.word_form_type != "surface" else None
 
-    def pre_tokenize(self, pretok: PreTokenizedString):
-        pretok.split(self.sudachi_split)
+    def custom_split(self, i: int, normalized_string: NormalizedString) -> List[NormalizedString]:
+        """
+        Tokenizes with SudachiPy and returns its tokens.
 
-    @staticmethod
-    def split_normalized_string(normalized_string: NormalizedString, tokens: List[str]) -> List[NormalizedString]:
-        token_spans = textspan.get_original_spans(tokens, str(normalized_string).strip())
-        return [normalized_string[start:end] for token_span in token_spans for start, end in token_span]
+        Args:
+            i (int): Index.
+            normalized_string (NormalizedString): Input string.
 
-    def sudachi_split(self, i: int, normalized_string: NormalizedString) -> List[NormalizedString]:
+        Returns:
+            List[NormalizedString]: List of normalized_strings.
+        """
         morphs = super().tokenize(str(normalized_string).strip())
         tokens = list(map(lambda m: m.surface(), morphs))
         normalized_strings = self.split_normalized_string(normalized_string, tokens)

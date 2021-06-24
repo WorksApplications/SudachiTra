@@ -14,8 +14,9 @@
 
 from typing import Optional
 
-from sudachipy.tokenizer import Tokenizer
 from sudachipy.dictionary import Dictionary
+from sudachipy.morphemelist import MorphemeList
+from sudachipy.tokenizer import Tokenizer
 
 
 class SudachipyWordTokenizer:
@@ -56,5 +57,14 @@ class SudachipyWordTokenizer:
         sudachi_dict = Dictionary(config_path=config_path, resource_dir=resource_dir, dict_type=dict_type)
         self.sudachi = sudachi_dict.create()
 
-    def tokenize(self, text, **kwargs):
+    def tokenize(self, text: str) -> MorphemeList:
+        """
+        Tokenizes the specified text and returns its morphemes.
+
+        Args:
+            text (str): Input string.
+
+        Returns:
+            MorphemeList: List of morphemes.
+        """
         return self.sudachi.tokenize(text, self.split_mode)
