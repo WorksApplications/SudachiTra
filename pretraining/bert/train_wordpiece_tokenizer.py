@@ -15,6 +15,7 @@
 import argparse
 import os
 from glob import glob
+from logzero import logger
 from tokenizers.normalizers import NFKC, Sequence
 
 from chitra.pretokenizer import JapaneseBertWordPieceTokenizer, SudachipyPreTokenizer
@@ -30,8 +31,8 @@ def main():
     else:
         raise ValueError("`input_file` or `input_dir` must be specified.")
 
-    print("input files")
-    print("\n".join(files))
+    logger.info("Input files")
+    logger.info("\n".join(map(lambda x: "\t{}".format(x), files)))
 
     settings = dict(
         vocab_size=args.vocab_size,
@@ -57,7 +58,7 @@ def main():
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     wp_tokenizer.train(files, **settings)
 
-    print("#vocab:", wp_tokenizer.get_vocab_size())
+    logger.info("#Vocab: {}".format(wp_tokenizer.get_vocab_size()))
 
     os.makedirs(args.output_dir, exist_ok=True)
     wp_tokenizer.save(os.path.join(args.output_dir, args.config_name))
