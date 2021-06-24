@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import OrderedDict
 import copy
 import os
+from collections import OrderedDict
 from typing import Dict, List, Optional, Tuple
 
+from sudachipy.morpheme import Morpheme
 from transformers.models.bert_japanese.tokenization_bert_japanese import CharacterTokenizer
 from transformers.models.bert.tokenization_bert import WordpieceTokenizer
 from transformers.tokenization_utils import PreTrainedTokenizer
@@ -46,8 +47,16 @@ PRETRAINED_INIT_CONFIGURATION = {
 }
 
 
-def load_vocabulary(vocab_file = VOCAB_FILES_NAMES["vocab_file"]):
-    """Loads a vocabulary file into a dictionary."""
+def load_vocabulary(vocab_file: str = VOCAB_FILES_NAMES["vocab_file"]) -> Dict[str, int]:
+    """
+    Loads a vocabulary file into a dictionary.
+
+    Args:
+        vocab_file (str): Vocabulary file path.
+
+    Returns:
+        Dict[str, int]: Dictionary of vocabulary and its index.
+    """
     vocab = OrderedDict()
     with open(vocab_file, "r", encoding="utf-8") as reader:
         tokens = reader.readlines()
@@ -57,7 +66,20 @@ def load_vocabulary(vocab_file = VOCAB_FILES_NAMES["vocab_file"]):
     return vocab
 
 
-def save_vocabulary(vocab: Dict[str, int], save_directory: str, filename_prefix: Optional[str] = None, vocab_file: str = VOCAB_FILES_NAMES["vocab_file"]) -> Tuple[str]:
+def save_vocabulary(vocab: Dict[str, int], save_directory: str, filename_prefix: Optional[str] = None,
+                    vocab_file: str = VOCAB_FILES_NAMES["vocab_file"]) -> Tuple[str]:
+    """
+    Save the vocabulary.
+
+    Args:
+        vocab (Dict[str, int]): Dictionary of vocabulary and its index.
+        save_directory (str): The output directory where the vocabulary will be stored.
+        filename_prefix (str | None): The filename prefix of the vocabulary file.
+        vocab_file (str): The filename of the vocabulary file.
+
+    Returns:
+        Tuple[str]: Saved vocabulary path.
+    """
     index = 0
     if os.path.isdir(save_directory):
         vocab_file = os.path.join(
@@ -90,7 +112,16 @@ WORD_FORM_TYPES = {
 CONJUGATIVE_POS = {'動詞', '形容詞', '形容動詞', '助動詞'}
 
 
-def pos_substitution_format(token):
+def pos_substitution_format(token: Morpheme) -> str:
+    """
+    Creates POS tag by combining each POS.
+
+    Args:
+        token (Morpheme): Morpheme in a sentence.
+
+    Returns:
+        str: POS tag.
+    """
     hierarchy = token.part_of_speech()
     pos = f"[{hierarchy[0]}"
     for p in hierarchy[1:]:
@@ -307,5 +338,17 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
 
     # ported from BertTokenizer -->
 
-    def save_vocabulary(self, save_directory, filename_prefix=None, vocab_file_name=VOCAB_FILES_NAMES["vocab_file"]):
+    def save_vocabulary(self, save_directory: str, filename_prefix: Optional[str] = None,
+                        vocab_file_name: str = VOCAB_FILES_NAMES["vocab_file"]) -> Tuple[str]:
+        """
+        Save the vocabulary.
+
+        Args:
+            save_directory (str): The output directory where the vocabulary will be stored.
+            filename_prefix (str | None): The filename prefix of the vocabulary file.
+            vocab_file_name (str): The filename of the vocabulary file.
+
+        Returns:
+            Tuple[str]: Saved vocabulary path.
+        """
         return save_vocabulary(self.vocab, save_directory, filename_prefix, vocab_file_name)

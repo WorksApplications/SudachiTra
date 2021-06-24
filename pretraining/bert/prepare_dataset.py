@@ -25,7 +25,15 @@ START_PARAGRAPH_DELIMITER = '_START_PARAGRAPH_'
 NEW_LINE_DELIMITER = '_NEWLINE_'
 
 
-def get_paragraphs_from_article(article_text: str) -> List[List[str]]:
+def split_article(article_text: str) -> List[List[str]]:
+    """
+    Splits an article into paragraphs.
+
+    Args: article_text (str): An article in wikipedia.
+
+    Returns:
+        List[List[str]]: List of paragraphs containing sentences
+    """
     paragraphs = []
     lines = article_text.split('\n')
     for i in range(2, len(lines), 2):
@@ -43,7 +51,7 @@ def main():
     bunkai = Bunkai()
 
     for line in tfds.as_dataframe(ds[TARGET_DATASETS.index(args.target)], ds_info).itertuples():
-        paragraphs = get_paragraphs_from_article(line.text.decode('utf-8'))
+        paragraphs = split_article(line.text.decode('utf-8'))
         print(START_ARTICLE_DELIMITER)
         for paragraph in paragraphs:
             print(START_PARAGRAPH_DELIMITER)

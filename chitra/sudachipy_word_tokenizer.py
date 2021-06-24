@@ -14,6 +14,10 @@
 
 from typing import Optional
 
+from sudachipy.dictionary import Dictionary
+from sudachipy.morphemelist import MorphemeList
+from sudachipy.tokenizer import Tokenizer
+
 
 class SudachipyWordTokenizer:
     """Runs tokenization with SudachiPy."""
@@ -40,16 +44,6 @@ class SudachipyWordTokenizer:
                 Sudachi dictionary type to be used for tokenization.
                 "small", "core", or "full" can be specified.
         """
-
-        try:
-            from sudachipy.tokenizer import Tokenizer
-            from sudachipy.dictionary import Dictionary
-        except ModuleNotFoundError as error:
-            raise error.__class__(
-                "You need to install SudachiPy to use SudachipyTokenizer. "
-                "See https://github.com/WorksApplications/SudachiPy for installation. "
-            )
-
         split_mode = split_mode.upper()
         if split_mode == "C":
             self.split_mode = Tokenizer.SplitMode.C
@@ -63,5 +57,14 @@ class SudachipyWordTokenizer:
         sudachi_dict = Dictionary(config_path=config_path, resource_dir=resource_dir, dict_type=dict_type)
         self.sudachi = sudachi_dict.create()
 
-    def tokenize(self, text, **kwargs):
+    def tokenize(self, text: str) -> MorphemeList:
+        """
+        Tokenizes the specified text and returns its morphemes.
+
+        Args:
+            text (str): Input string.
+
+        Returns:
+            MorphemeList: List of morphemes.
+        """
         return self.sudachi.tokenize(text, self.split_mode)

@@ -65,29 +65,38 @@ def main():
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='train tokenizer')
+    parser = argparse.ArgumentParser(description='Trainer of wordpiece tokenizer')
 
     # input
     parser.add_argument('-f', '--input_file', default='',
-                        help='input file to train tokenizer (corpus splitted by paragraph)')
+                        help='Input file to train tokenizer.')
     parser.add_argument('-d', '--input_dir', default='',
-                        help='input dir containing files to train tokenizer')
+                        help='Input directory containing files to train tokenizer.')
 
-    # parameters
-    parser.add_argument('--vocab_size', type=int, default=32000)
-    parser.add_argument('--min_frequency', type=int, default=1)
-    parser.add_argument('--limit_alphabet', type=int, default=5000)
+    # Parameters
+    parser.add_argument('--vocab_size', type=int, default=32000,
+                        help='The size of the final vocabulary, including all tokens and alphabet.')
+    parser.add_argument('--min_frequency', type=int, default=1,
+                        help='The minimum frequency a pair should have in order to be merged.')
+    parser.add_argument('--limit_alphabet', type=int, default=5000,
+                        help='The maximum different characters to keep in the alphabet.')
 
-    # sudachi
-    parser.add_argument('--dict_type', default='core', choices=['small', 'core', 'full'])
-    parser.add_argument('--split_mode', default='C', choices=['A', 'B', 'C', 'a', 'b', 'c'])
+    # Tokenization
+    parser.add_argument('--dict_type', default='core', choices=['small', 'core', 'full'],
+                        help='Sudachi dictionary type to be used for tokenization.')
+    parser.add_argument('--split_mode', default='C', choices=['A', 'B', 'C', 'a', 'b', 'c'],
+                        help='The mode of splitting.')
     parser.add_argument('--word_form_type', default='surface',
-                        choices=['surface', 'dictionary', 'normalized', 'dictionary_and_surface', 'normalized_and_surface'])
+                        choices=['surface', 'dictionary', 'normalized', 'dictionary_and_surface', 'normalized_and_surface'],
+                        help='Word form type for each morpheme.')
 
-    # output
-    parser.add_argument('-o', '--output_dir', help='path to be saved tokenizer file')
-    parser.add_argument('-c', '--config_name', default='config.json', help='output json file name')
-    parser.add_argument('-v', '--vocab_prefix', default='', help='prefix of vocab file')
+    # Output
+    parser.add_argument('-o', '--output_dir',
+                        help='The output dir to be saved vocabulary and config file.')
+    parser.add_argument('-c', '--config_name', default='config.json',
+                        help='Output json file name.')
+    parser.add_argument('-v', '--vocab_prefix', default='',
+                        help='Prefix of vocab file.')
 
     args = parser.parse_args()
 

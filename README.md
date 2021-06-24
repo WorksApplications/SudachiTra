@@ -46,6 +46,8 @@ Please refer to [pretraining/bert/README.md](https://github.com/WorksApplication
 ## Roadmap
 
 * Releasing pre-trained models for BERT
+* Adding tests
+* Updating documents
 
 
 ## For Developers
