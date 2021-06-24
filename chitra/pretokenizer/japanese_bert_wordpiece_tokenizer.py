@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+from typing import Dict, Iterator, List, Optional, TypeVar, Union
+
+from logzero import logger
 from tokenizers import Tokenizer, AddedToken, decoders, trainers
 from tokenizers.models import WordPiece
 from tokenizers.normalizers import NFKC, Sequence
@@ -20,7 +24,6 @@ from tokenizers.processors import BertProcessing
 from tokenizers.implementations import BertWordPieceTokenizer
 from tokenizers.implementations.base_tokenizer import BaseTokenizer
 
-from typing import Dict, Iterator, List, Optional, TypeVar, Union
 from . import CustomPreTokenizer
 
 
@@ -109,6 +112,14 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
     ):
         """ Train the model using the given files """
 
+        logger.info("Parameters for training")
+        logger.info("\tvocab_size: {}".format(vocab_size))
+        logger.info("\tmin_frequency: {}".format(min_frequency))
+        logger.info("\tlimit_alphabet: {}".format(limit_alphabet))
+        logger.info("\tinitial_alphabet: {}".format(",".join(initial_alphabet)))
+        logger.info("\tspecial_tokens: {}".format(",".join(special_tokens)))
+        logger.info("\twordpieces_prefix: {}".format(wordpieces_prefix))
+
         trainer = trainers.WordPieceTrainer(
             vocab_size=vocab_size,
             min_frequency=min_frequency,
@@ -120,7 +131,12 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         )
         if isinstance(files, str):
             files = [files]
+
+        logger.info("Input files")
+        logger.info("\n".join(map(lambda x: "\t{}".format(x), files)))
+
         self._tokenizer.train(files, trainer=trainer)
+        logger.info("#Vocab: {}".format(self.get_vocab_size()))
 
     def train_from_iterator(
             self,
@@ -141,6 +157,14 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
     ):
         """ Train the model using the given iterator """
 
+        logger.info("Parameters for training")
+        logger.info("\tvocab_size: {}".format(vocab_size))
+        logger.info("\tmin_frequency: {}".format(min_frequency))
+        logger.info("\tlimit_alphabet: {}".format(limit_alphabet))
+        logger.info("\tinitial_alphabet: {}".format(",".join(initial_alphabet)))
+        logger.info("\tspecial_tokens: {}".format(",".join(special_tokens)))
+        logger.info("\twordpieces_prefix: {}".format(wordpieces_prefix))
+
         trainer = trainers.WordPieceTrainer(
             vocab_size=vocab_size,
             min_frequency=min_frequency,
@@ -151,6 +175,8 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             continuing_subword_prefix=wordpieces_prefix,
         )
         self._tokenizer.train_from_iterator(iterator, trainer=trainer)
+
+        logger.info("#Vocab: {}".format(self.get_vocab_size()))
 
     def set_pre_tokenizer(self, custom_pre_tokenizer: CPT):
         """
@@ -171,6 +197,8 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             output_tokenizer_path (str): Output file path to be saved a config file of tokenizer.
             pretty (bool): Json format type.
         """
+        logger.info("Saving config to `{}`".format(output_tokenizer_path))
+
         self.pre_tokenizer = BertPreTokenizer()  # dummy
         super().save(output_tokenizer_path, pretty=pretty)
 
@@ -182,4 +210,6 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             output_dir (str): The path to the target directory in which to save the various files.
             prefix (str): An optional prefix, used to prefix each file name
         """
+        logger.info("Saving vocab to `{}`".format(os.path.join(output_dir, "{}-vocab.txt".format(prefix))))
+
         self.model.save(output_dir, prefix)
