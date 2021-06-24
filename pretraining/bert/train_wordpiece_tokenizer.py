@@ -16,7 +16,6 @@ import argparse
 import os
 from glob import glob
 from logzero import logger
-from tokenizers.normalizers import NFKC, Sequence
 
 from chitra.pretokenizer import JapaneseBertWordPieceTokenizer, SudachipyPreTokenizer
 
