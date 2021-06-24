@@ -111,6 +111,7 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             wordpieces_prefix: str = "##",
     ):
         """ Train the model using the given files """
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
         logger.info("Parameters for training")
         logger.info("\tvocab_size: {}".format(vocab_size))
@@ -156,6 +157,7 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             wordpieces_prefix: str = "##",
     ):
         """ Train the model using the given iterator """
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
         logger.info("Parameters for training")
         logger.info("\tvocab_size: {}".format(vocab_size))

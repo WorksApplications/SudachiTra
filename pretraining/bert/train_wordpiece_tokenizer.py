@@ -44,7 +44,6 @@ def main():
     )
     wp_tokenizer.set_pre_tokenizer(sudachi_pre_tokenizer)
 
-    os.environ["TOKENIZERS_PARALLELISM"] = "false"
     wp_tokenizer.train(files, **settings)
 
     os.makedirs(args.output_dir, exist_ok=True)
