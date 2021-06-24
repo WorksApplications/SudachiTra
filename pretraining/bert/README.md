@@ -111,7 +111,7 @@ We recommend to split dataset into multiple files.
 
 ```shell script
 # splits wiki40b into multiple files
-$ python data_split.py \
+$ python split_dataset.py \
 --input_file datasets/corpus_splitted_by_paragraph/ja_wiki40b_*.paragraph.txt \
 --line_per_file 760000
 ```
