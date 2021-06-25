@@ -57,7 +57,7 @@ TBD
 
 ## Contact
 
-SudachiTra are developed by [WAP Tokushima Laboratory of AI and NLP](http://nlp.worksap.co.jp/).
+Sudachi and SudachiTra are developed by [WAP Tokushima Laboratory of AI and NLP](http://nlp.worksap.co.jp/).
 
 Open an issue, or come to our Slack workspace for questions and discussion.
 
