@@ -1,8 +1,8 @@
-# chiTra
+# Sudachi for Transformers (chiTra)
 
 [![](https://img.shields.io/badge/python-3.6+-blue.svg)](https://www.python.org/downloads/release/python-360/)
-[![test](https://github.com/WorksApplications/chiTra/actions/workflows/test.yaml/badge.svg)](https://github.com/WorksApplications/chiTra/actions/workflows/test.yaml)
-[![](https://img.shields.io/github/license/WorksApplications/chiTra.svg)](https://github.com/WorksApplications/chiTra/blob/main/LICENSE)
+[![test](https://github.com/WorksApplications/SudachiTra/actions/workflows/test.yaml/badge.svg)](https://github.com/WorksApplications/SudachiTra/actions/workflows/test.yaml)
+[![](https://img.shields.io/github/license/WorksApplications/SudachiTra.svg)](https://github.com/WorksApplications/SudachiTra/blob/main/LICENSE)
 
 chiTra is a Japanese tokenizer for [Transformers](https://github.com/huggingface/transformers).
 
@@ -13,10 +13,10 @@ chiTra stands for Suda**chi** for **Tra**nsformers.
 
 ```python
 >>> from transformers import BertModel
->>> from chitra import BertSudachipyTokenizer
+>>> from sudachitra import BertSudachipyTokenizer
 
->>> tokenizer = BertSudachipyTokenizer.from_pretrained('chitra-bert-base-japanese-sudachi')
->>> model = BertModel.from_pretrained('chitra-bert-base-japanese-sudachi')
+>>> tokenizer = BertSudachipyTokenizer.from_pretrained('sudachitra-bert-base-japanese-sudachi')
+>>> model = BertModel.from_pretrained('sudachitra-bert-base-japanese-sudachi')
 >>> model(**tokenizer("まさにオールマイティーな商品だ。", return_tensors="pt")).last_hidden_state
 ```
 
@@ -26,7 +26,7 @@ chiTra stands for Suda**chi** for **Tra**nsformers.
 ## Installation
 
 ```shell script
-$ pip install chitra
+$ pip install sudachitra
 ```
 
 The default [Sudachi dictionary](https://github.com/WorksApplications/SudachiDict) is [SudachiDict-core](https://pypi.org/project/SudachiDict-core/).
@@ -40,7 +40,7 @@ $ pip install sudachidict_small sudachidict_full
 
 ## Pretraining
 
-Please refer to [pretraining/bert/README.md](https://github.com/WorksApplications/chiTra/tree/main/pretraining/bert).
+Please refer to [pretraining/bert/README.md](https://github.com/WorksApplications/SudaSudachiTra/tree/main/pretraining/bert).
 
 
 ## Roadmap
@@ -57,7 +57,7 @@ TBD
 
 ## Contact
 
-chiTra are developed by [WAP Tokushima Laboratory of AI and NLP](http://nlp.worksap.co.jp/).
+SudaSudachiTra are developed by [WAP Tokushima Laboratory of AI and NLP](http://nlp.worksap.co.jp/).
 
 Open an issue, or come to our Slack workspace for questions and discussion.
 

@@ -16,7 +16,7 @@ import argparse
 import os
 from glob import glob
 
-from chitra.pretokenizer import JapaneseBertWordPieceTokenizer, SudachipyPreTokenizer
+from sudachitra.pretokenizer import JapaneseBertWordPieceTokenizer, SudachipyPreTokenizer
 
 
 def main():
