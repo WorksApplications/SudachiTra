@@ -15,13 +15,13 @@
 from setuptools import find_packages, setup
 
 setup(
-    name="chiTra",
+    name="SudachiTra",
     use_scm_version=True,
     setup_requires=["setuptools_scm"],
     description="Japanese tokenizer for Transformers.",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
-    url="https://github.com/WorksApplications/chiTra",
+    url="https://github.com/WorksApplications/SudachiTra",
     license="Apache-2.0",
     author="Works Applications",
     author_email="sudachi@worksap.co.jp",

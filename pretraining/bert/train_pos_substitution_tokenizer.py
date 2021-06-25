@@ -16,7 +16,7 @@ import argparse
 import os
 from glob import glob
 
-from chitra.pretokenizer import PartOfSpeechSubstitutionTokenizer
+from sudachitra.pretokenizer import PartOfSpeechSubstitutionTokenizer
 
 
 def main():

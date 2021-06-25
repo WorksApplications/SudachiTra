@@ -14,13 +14,13 @@ https://github.com/tensorflow/models/tree/master/official/nlp/bert
 To pretrain BERT models, you need to download [models](https://github.com/tensorflow/models) repository.
 
 ```shell script
-$ git clone --recursive https://github.com/WorksApplications/chitra/
+$ git clone --recursive https://github.com/WorksApplications/SudachiTra/
 ```
 
 In addition, you need to install the required packages to pretrain models.
 
 ```shell script
-$ cd chitra/
+$ cd SudachiTra/
 $ pip install -r pretraining/bert/requirements.txt
 ```
 
