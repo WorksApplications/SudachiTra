@@ -40,7 +40,7 @@ $ pip install sudachidict_small sudachidict_full
 
 ## Pretraining
 
-Please refer to [pretraining/bert/README.md](https://github.com/WorksApplications/SudaSudachiTra/tree/main/pretraining/bert).
+Please refer to [pretraining/bert/README.md](https://github.com/WorksApplications/SudachiTra/tree/main/pretraining/bert).
 
 
 ## Roadmap
