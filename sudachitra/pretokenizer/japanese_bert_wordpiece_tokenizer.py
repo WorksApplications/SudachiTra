@@ -24,7 +24,7 @@ from tokenizers.processors import BertProcessing
 from tokenizers.implementations import BertWordPieceTokenizer
 from tokenizers.implementations.base_tokenizer import BaseTokenizer
 
-from . import CustomPreTokenizer
+from .sudachipy_pretokenizer import CustomPreTokenizer
 
 
 CPT = TypeVar('CPT', bound=CustomPreTokenizer)

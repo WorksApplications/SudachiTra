@@ -80,7 +80,7 @@ class SudachipyPreTokenizer(SudachipyWordTokenizer, CustomPreTokenizer):
             **kwargs:
                 Sudachi dictionary parameters.
         """
-        SudachipyWordTokenizer.__init__(split_mode=split_mode, dict_type=dict_type, **kwargs)
+        SudachipyWordTokenizer.__init__(self, split_mode=split_mode, dict_type=dict_type, **kwargs)
         self.word_form_type = word_form_type
         self.word_formatter = WORD_FORM_TYPES[self.word_form_type] if self.word_form_type != "surface" else None
 
