@@ -18,7 +18,7 @@ from typing import Dict, Iterator, List, Optional, TypeVar, Union
 from logzero import logger
 from tokenizers import Tokenizer, AddedToken, decoders, trainers
 from tokenizers.models import WordPiece
-from tokenizers.normalizers import NFKC, Sequence
+from tokenizers.normalizers import Lowercase, NFKC, Sequence
 from tokenizers.pre_tokenizers import BertPreTokenizer, PreTokenizer
 from tokenizers.processors import BertProcessing
 from tokenizers.implementations import BertWordPieceTokenizer
@@ -59,7 +59,7 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         if tokenizer.token_to_id(str(mask_token)) is not None:
             tokenizer.add_special_tokens([str(mask_token)])
 
-        tokenizer.normalizer = Sequence([NFKC()])
+        tokenizer.normalizer = Sequence([Lowercase(), NFKC()])
         tokenizer.pre_tokenizer = BertPreTokenizer()
 
         if vocab is not None:
