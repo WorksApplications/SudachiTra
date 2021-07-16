@@ -66,8 +66,8 @@ We used an implementation of WordPiece in [Tokenizers](https://github.com/huggin
 ```shell script
 $ python train_wordpiece_tokenizer.py \
 --input_file datasets/corpus_splitted_by_paragraph/ja_wiki40b_*.paragraph.txt \
---vocab_size 32000\
---limit_alphabet 5000\
+--vocab_size 32000 \
+--limit_alphabet 5000 \
 --dict_type core \
 --split_mode C \
 --word_form_type normalized \
