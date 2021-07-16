@@ -1,5 +1,5 @@
 logzero~=1.7.0
-progressbar~=2.5
+progressbar2~=3.53.1
 tokenizers>=0.10.3
 transformers>=4.6.1
 sudachipy>=0.5.2
