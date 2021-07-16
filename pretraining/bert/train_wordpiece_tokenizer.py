@@ -23,7 +23,7 @@ def main():
     args = get_args()
 
     if args.input_file:
-        files = [args.input_file]
+        files = args.input_file
     elif args.input_dir:
         files = glob(os.path.join(args.input_dir, '*.txt'))
     else:
@@ -55,7 +55,7 @@ def get_args():
     parser = argparse.ArgumentParser(description='Trainer of wordpiece tokenizer.')
 
     # input
-    parser.add_argument('-f', '--input_file', default='',
+    parser.add_argument('-f', '--input_file', default='', nargs='+',
                         help='Input file to train tokenizer.')
     parser.add_argument('-d', '--input_dir', default='',
                         help='Input directory containing files to train tokenizer.')
