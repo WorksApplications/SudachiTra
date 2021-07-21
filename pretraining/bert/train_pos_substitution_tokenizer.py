@@ -43,6 +43,7 @@ def main():
         special_tokens=args.special_tokens
     )
 
+    os.makedirs(os.path.dirname(args.output_file), exist_ok=True)
     pos_tokenizer.save_vocab(args.output_file)
 
 
