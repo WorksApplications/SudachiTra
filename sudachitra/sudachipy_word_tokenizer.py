@@ -24,7 +24,7 @@ class SudachipyWordTokenizer:
 
     def __init__(
             self,
-            split_mode: Optional[str] = "C",
+            split_mode: Optional[str] = "A",
             config_path: Optional[str] = None,
             resource_dir: Optional[str] = None,
             dict_type: Optional[str] = "core",
