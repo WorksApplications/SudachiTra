@@ -25,10 +25,13 @@ class SlowSudachipyWordTokenizer:
         else:
             raise ValueError("Invalid `split_mode`: " + split_mode)
 
-        self.sudachi_dict = Dictionary(config_path=config_path, resource_dir=resource_dir, dict_type=dict_type)
+        self.config_path = config_path
+        self.resource_dir = resource_dir
+        self.dict_type = dict_type
 
     def tokenize(self, text: str) -> MorphemeList:
-        sudachi = self.sudachi_dict.create()
+        sudachi_dict = Dictionary(config_path=self.config_path, resource_dir=self.resource_dir, dict_type=self.dict_type)
+        sudachi = sudachi_dict.create()
         return sudachi.tokenize(text, self.split_mode)
 
 
