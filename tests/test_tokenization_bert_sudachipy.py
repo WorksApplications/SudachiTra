@@ -168,6 +168,34 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
             ["アップル", "の", "辞書形", "は", "アップル", "で", "正規", "形", "は", "アップル", "で", "ある", "。"]
         )
 
+    def test_sudachipy_tokenizer_surface_half_ascii(self):
+        tokenizer = self.tokenizer_class(self.vocab_file, do_subword_tokenize=False,
+                                         word_form_type='surface_half_ascii')
+
+        self.assertListEqual(
+            tokenizer.tokenize("appleやａｐｐｌｅの辞書形はＡｐｐｌｅで正規形はアップルである。"),
+            ["apple", "や", "apple", "の", "辞書形", "は", "Apple", "で", "正規", "形", "は", "アップル", "で", "ある", "。"]
+
+        )
+
+    def test_sudachipy_tokenizer_dictionary_form_half_ascii(self):
+        tokenizer = self.tokenizer_class(self.vocab_file, do_subword_tokenize=False,
+                                         word_form_type='dictionary_half_ascii')
+
+        self.assertListEqual(
+            tokenizer.tokenize("appleやａｐｐｌｅの辞書形はＡｐｐｌｅで正規形はアップルである。"),
+            ["Apple", "や", "Apple", "の", "辞書形", "は", "Apple", "で", "正規", "形", "は", "アップル", "だ", "ある", "。"]
+        )
+
+    def test_sudachipy_tokenizer_dictionary_form_and_surface_half_ascii(self):
+        tokenizer = self.tokenizer_class(self.vocab_file, do_subword_tokenize=False,
+                                         word_form_type='dictionary_and_surface_half_ascii')
+
+        self.assertListEqual(
+            tokenizer.tokenize("appleやａｐｐｌｅの辞書形はＡｐｐｌｅで正規形はアップルである。"),
+            ["Apple", "や", "Apple", "の", "辞書形", "は", "Apple", "で", "正規", "形", "は", "アップル", "で", "ある", "。"]
+        )
+
     def test_sudachipy_tokenizer_unit_a(self):
         try:
             tokenizer = SudachipyWordTokenizer(split_mode="A")
