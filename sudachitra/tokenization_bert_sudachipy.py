@@ -105,11 +105,13 @@ HALF_ASCII_TRANSLATE_TABLE = str.maketrans({chr(0xFF01 + _): chr(0x21 + _) for _
 
 WORD_FORM_TYPES = {
     "surface": lambda m: m.surface(),
-    "surface_half_ascii": lambda m: m.surface().translate(HALF_ASCII_TRANSLATE_TABLE),
     "dictionary": lambda m: m.dictionary_form(),
     "normalized": lambda m: m.normalized_form(),
     "dictionary_and_surface": lambda m: m.surface() if m.part_of_speech()[0] in CONJUGATIVE_POS else m.dictionary_form(),
     "normalized_and_surface": lambda m: m.surface() if m.part_of_speech()[0] in CONJUGATIVE_POS else m.normalized_form(),
+    "surface_half_ascii": lambda m: m.surface().translate(HALF_ASCII_TRANSLATE_TABLE),
+    "dictionary_half_ascii": lambda m: m.dictionary_form().translate(HALF_ASCII_TRANSLATE_TABLE),
+    "dictionary_and_surface_half_ascii": lambda m: m.surface().translate(HALF_ASCII_TRANSLATE_TABLE) if m.part_of_speech()[0] in CONJUGATIVE_POS else m.dictionary_form().translate(HALF_ASCII_TRANSLATE_TABLE),
 }
 
 CONJUGATIVE_POS = {'動詞', '形容詞', '形容動詞', '助動詞'}
