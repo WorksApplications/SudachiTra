@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .slow_tokenizer import SlowBertSudachipyTokenizer
 from .sudachipy_word_tokenizer import SudachipyWordTokenizer
 from .tokenization_bert_sudachipy import BertSudachipyTokenizer
 from .tokenization_electra_sudachipy import ElectraSudachipyTokenizer
