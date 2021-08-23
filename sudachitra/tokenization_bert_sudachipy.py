@@ -101,11 +101,11 @@ SUBWORD_TOKENIZER_TYPES = [
     "character",
 ]
 
-CHAR_TRANSLATE_TABLE = str.maketrans({chr(0xFF01 + _): chr(0x21 + _) for _ in range(94)})
+HALF_ASCII_TRANSLATE_TABLE = str.maketrans({chr(0xFF01 + _): chr(0x21 + _) for _ in range(94)})
 
 WORD_FORM_TYPES = {
     "surface": lambda m: m.surface(),
-    "surface_half_ascii": lambda m: m.surface().translate(CHAR_TRANSLATE_TABLE),
+    "surface_half_ascii": lambda m: m.surface().translate(HALF_ASCII_TRANSLATE_TABLE),
     "dictionary": lambda m: m.dictionary_form(),
     "normalized": lambda m: m.normalized_form(),
     "dictionary_and_surface": lambda m: m.surface() if m.part_of_speech()[0] in CONJUGATIVE_POS else m.dictionary_form(),
