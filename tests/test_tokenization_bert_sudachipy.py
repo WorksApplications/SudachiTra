@@ -128,7 +128,7 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
 
         self.assertListEqual(
             tokenizer.tokenize("appleの辞書形はAppleで正規形はアップルである。"),
-            ["apple", "の", "辞書形", "は", "Apple", "で", "正規", "形", "は", "アップル", "で", "ある", "。"]
+            ["apple", "の", "辞書", "形", "は", "Apple", "で", "正規", "形", "は", "アップル", "で", "ある", "。"]
 
         )
 
@@ -138,7 +138,7 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
 
         self.assertListEqual(
             tokenizer.tokenize("appleの辞書形はAppleで正規形はアップルである。"),
-            ["Apple", "の", "辞書形", "は", "Apple", "で", "正規", "形", "は", "アップル", "だ", "ある", "。"]
+            ["Apple", "の", "辞書", "形", "は", "Apple", "で", "正規", "形", "は", "アップル", "だ", "ある", "。"]
         )
 
     def test_sudachipy_tokenizer_normalized_form(self):
@@ -147,7 +147,7 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
 
         self.assertListEqual(
             tokenizer.tokenize("appleの辞書形はAppleで正規形はアップルである。"),
-            ["アップル", "の", "辞書形", "は", "アップル", "で", "正規", "形", "は", "アップル", "だ", "有る", "。"]
+            ["アップル", "の", "辞書", "形", "は", "アップル", "で", "正規", "形", "は", "アップル", "だ", "有る", "。"]
         )
 
     def test_sudachipy_tokenizer_dictionary_form_and_surface(self):
@@ -156,7 +156,7 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
 
         self.assertListEqual(
             tokenizer.tokenize("appleの辞書形はAppleで正規形はアップルである。"),
-            ["Apple", "の", "辞書形", "は", "Apple", "で", "正規", "形", "は", "アップル", "で", "ある", "。"]
+            ["Apple", "の", "辞書", "形", "は", "Apple", "で", "正規", "形", "は", "アップル", "で", "ある", "。"]
         )
 
     def test_sudachipy_tokenizer_normalized_form_and_surface(self):
@@ -165,7 +165,7 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
 
         self.assertListEqual(
             tokenizer.tokenize("appleの辞書形はAppleで正規形はアップルである。"),
-            ["アップル", "の", "辞書形", "は", "アップル", "で", "正規", "形", "は", "アップル", "で", "ある", "。"]
+            ["アップル", "の", "辞書", "形", "は", "アップル", "で", "正規", "形", "は", "アップル", "で", "ある", "。"]
         )
 
     def test_sudachipy_tokenizer_surface_half_ascii(self):
@@ -174,7 +174,7 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
 
         self.assertListEqual(
             tokenizer.tokenize("appleやａｐｐｌｅの辞書形はＡｐｐｌｅで正規形はアップルである。"),
-            ["apple", "や", "apple", "の", "辞書形", "は", "Apple", "で", "正規", "形", "は", "アップル", "で", "ある", "。"]
+            ["apple", "や", "apple", "の", "辞書", "形", "は", "Apple", "で", "正規", "形", "は", "アップル", "で", "ある", "。"]
 
         )
 
@@ -184,7 +184,7 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
 
         self.assertListEqual(
             tokenizer.tokenize("appleやａｐｐｌｅの辞書形はＡｐｐｌｅで正規形はアップルである。"),
-            ["Apple", "や", "Apple", "の", "辞書形", "は", "Apple", "で", "正規", "形", "は", "アップル", "だ", "ある", "。"]
+            ["Apple", "や", "Apple", "の", "辞書", "形", "は", "Apple", "で", "正規", "形", "は", "アップル", "だ", "ある", "。"]
         )
 
     def test_sudachipy_tokenizer_dictionary_form_and_surface_half_ascii(self):
@@ -193,7 +193,7 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
 
         self.assertListEqual(
             tokenizer.tokenize("appleやａｐｐｌｅの辞書形はＡｐｐｌｅで正規形はアップルである。"),
-            ["Apple", "や", "Apple", "の", "辞書形", "は", "Apple", "で", "正規", "形", "は", "アップル", "で", "ある", "。"]
+            ["Apple", "や", "Apple", "の", "辞書", "形", "は", "Apple", "で", "正規", "形", "は", "アップル", "で", "ある", "。"]
         )
 
     def test_sudachipy_tokenizer_unit_a(self):
