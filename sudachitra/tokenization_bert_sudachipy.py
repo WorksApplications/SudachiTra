@@ -18,6 +18,7 @@ from collections import OrderedDict
 from typing import Dict, List, Optional, Tuple
 
 from sudachipy.morpheme import Morpheme
+from tokenizers.normalizers import NFKC, Sequence
 from transformers.models.bert_japanese.tokenization_bert_japanese import CharacterTokenizer
 from transformers.models.bert.tokenization_bert import WordpieceTokenizer
 from transformers.tokenization_utils import PreTrainedTokenizer
@@ -148,6 +149,7 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
             self,
             vocab_file,
             do_lower_case=False,
+            do_nfkc=False,
             do_word_tokenize=True,
             do_subword_tokenize=True,
             word_tokenizer_type="sudachipy",
@@ -163,6 +165,7 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
     ):
         super().__init__(
             do_lower_case=do_lower_case,
+            do_nfkc=do_nfkc,
             do_word_tokenize=do_word_tokenize,
             do_subword_tokenize=do_subword_tokenize,
             word_tokenizer_type=word_tokenizer_type,
@@ -189,6 +192,9 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
             raise ValueError(f"Invalid word_tokenizer_type '{word_tokenizer_type}' is specified.")
 
         self.lower_case = do_lower_case
+        self.nfkc = do_nfkc
+        self._sequence_normalizer = Sequence([NFKC()])
+        self.normalizer = lambda x: self._sequence_normalizer.normalize_str(x) if self.nfkc else x
 
         self.sudachipy_kwargs = copy.deepcopy(sudachipy_kwargs)
         self.word_tokenizer = SudachipyWordTokenizer(**(self.sudachipy_kwargs or {}))
@@ -211,6 +217,10 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
         return self.lower_case
 
     @property
+    def do_nfkc(self):
+        return self.nfkc
+
+    @property
     def vocab_size(self):
         return len(self.vocab)
 
@@ -229,6 +239,7 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
         self.word_tokenizer = SudachipyWordTokenizer(**(self.sudachipy_kwargs or {}))
 
     def _tokenize(self, text, **kwargs):
+        text = self.normalizer(text)
         tokens = self.word_tokenizer.tokenize(text)
         word_format = WORD_FORM_TYPES[self.word_form_type]
         if self.do_subword_tokenize:
