@@ -194,7 +194,6 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
         self.lower_case = do_lower_case
         self.nfkc = do_nfkc
         self._sequence_normalizer = Sequence([NFKC()])
-        self.normalizer = lambda x: self._sequence_normalizer.normalize_str(x) if self.nfkc else x
 
         self.sudachipy_kwargs = copy.deepcopy(sudachipy_kwargs)
         self.word_tokenizer = SudachipyWordTokenizer(**(self.sudachipy_kwargs or {}))
@@ -226,6 +225,9 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
 
     def get_vocab(self):
         return dict(self.vocab, **self.added_tokens_encoder)
+
+    def normalizer(self, text):
+        return self._sequence_normalizer.normalize_str(text) if self.nfkc else text
 
     # TODO: need to investigate the serialization behavior
     def __getstate__(self):
