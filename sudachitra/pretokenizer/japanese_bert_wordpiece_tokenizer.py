@@ -18,13 +18,13 @@ from typing import Dict, Iterator, List, Optional, TypeVar, Union
 from logzero import logger
 from tokenizers import Tokenizer, AddedToken, decoders, trainers
 from tokenizers.models import WordPiece
-from tokenizers.normalizers import Lowercase, NFKC, Sequence
 from tokenizers.pre_tokenizers import BertPreTokenizer, PreTokenizer
 from tokenizers.processors import BertProcessing
 from tokenizers.implementations import BertWordPieceTokenizer
 from tokenizers.implementations.base_tokenizer import BaseTokenizer
 
 from .sudachipy_pretokenizer import CustomPreTokenizer
+from ..input_string_normalizer import InputStringNormalizer
 
 
 CPT = TypeVar('CPT', bound=CustomPreTokenizer)
@@ -39,7 +39,8 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             cls_token: Union[str, AddedToken] = "[CLS]",
             pad_token: Union[str, AddedToken] = "[PAD]",
             mask_token: Union[str, AddedToken] = "[MASK]",
-            lowercase: bool = False,
+            do_lowercase: bool = False,
+            do_nfkc: bool = False,
             wordpieces_prefix: str = "##",
     ):
         if vocab is not None:
@@ -59,7 +60,7 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         if tokenizer.token_to_id(str(mask_token)) is not None:
             tokenizer.add_special_tokens([str(mask_token)])
 
-        tokenizer.normalizer = Sequence([NFKC()])
+        tokenizer.normalizer = InputStringNormalizer(do_lowercase=do_lowercase, do_nfkc=do_nfkc)
         tokenizer.pre_tokenizer = BertPreTokenizer()
 
         if vocab is not None:
@@ -82,7 +83,8 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             "cls_token": cls_token,
             "pad_token": pad_token,
             "mask_token": mask_token,
-            "lowercase": lowercase,
+            "do_lowercase": do_lowercase,
+            "do_nfkc": do_nfkc,
             "wordpieces_prefix": wordpieces_prefix,
         }
 

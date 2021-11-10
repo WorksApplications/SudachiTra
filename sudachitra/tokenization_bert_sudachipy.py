@@ -18,11 +18,11 @@ from collections import OrderedDict
 from typing import Dict, List, Optional, Tuple
 
 from sudachipy.morpheme import Morpheme
-from tokenizers.normalizers import NFKC, Sequence
 from transformers.models.bert_japanese.tokenization_bert_japanese import CharacterTokenizer
 from transformers.models.bert.tokenization_bert import WordpieceTokenizer
 from transformers.tokenization_utils import PreTrainedTokenizer
 
+from .input_string_normalizer import InputStringNormalizer
 from .sudachipy_word_tokenizer import SudachipyWordTokenizer
 
 
@@ -193,7 +193,7 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
 
         self.lower_case = do_lower_case
         self.nfkc = do_nfkc
-        self._sequence_normalizer = Sequence([NFKC()])
+        self.normalizer = InputStringNormalizer(do_nfkc=self.nfkc)
 
         self.sudachipy_kwargs = copy.deepcopy(sudachipy_kwargs)
         self.word_tokenizer = SudachipyWordTokenizer(**(self.sudachipy_kwargs or {}))
@@ -226,9 +226,6 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
     def get_vocab(self):
         return dict(self.vocab, **self.added_tokens_encoder)
 
-    def normalizer(self, text):
-        return self._sequence_normalizer.normalize_str(text) if self.nfkc else text
-
     # TODO: need to investigate the serialization behavior
     def __getstate__(self):
         state = dict(self.__dict__)
@@ -241,7 +238,7 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
         self.word_tokenizer = SudachipyWordTokenizer(**(self.sudachipy_kwargs or {}))
 
     def _tokenize(self, text, **kwargs):
-        text = self.normalizer(text)
+        text = self.normalizer.normalize(text)
         tokens = self.word_tokenizer.tokenize(text)
         word_format = WORD_FORM_TYPES[self.word_form_type]
         if self.do_subword_tokenize:
