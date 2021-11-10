@@ -60,7 +60,8 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         if tokenizer.token_to_id(str(mask_token)) is not None:
             tokenizer.add_special_tokens([str(mask_token)])
 
-        tokenizer.normalizer = InputStringNormalizer(do_lowercase=do_lowercase, do_nfkc=do_nfkc)
+        _normalizer = InputStringNormalizer(do_lowercase=do_lowercase, do_nfkc=do_nfkc)
+        tokenizer.normalizer = _normalizer.normalizer
         tokenizer.pre_tokenizer = BertPreTokenizer()
 
         if vocab is not None:
