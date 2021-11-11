@@ -39,7 +39,7 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             cls_token: Union[str, AddedToken] = "[CLS]",
             pad_token: Union[str, AddedToken] = "[PAD]",
             mask_token: Union[str, AddedToken] = "[MASK]",
-            do_lowercase: bool = False,
+            do_lower_case: bool = False,
             do_nfkc: bool = False,
             wordpieces_prefix: str = "##",
     ):
@@ -60,7 +60,7 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         if tokenizer.token_to_id(str(mask_token)) is not None:
             tokenizer.add_special_tokens([str(mask_token)])
 
-        _normalizer = InputStringNormalizer(do_lowercase=do_lowercase, do_nfkc=do_nfkc)
+        _normalizer = InputStringNormalizer(do_lower_case=do_lower_case, do_nfkc=do_nfkc)
         tokenizer.normalizer = _normalizer.normalizer
         tokenizer.pre_tokenizer = BertPreTokenizer()
 
@@ -84,7 +84,7 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             "cls_token": cls_token,
             "pad_token": pad_token,
             "mask_token": mask_token,
-            "do_lowercase": do_lowercase,
+            "do_lower_case": do_lower_case,
             "do_nfkc": do_nfkc,
             "wordpieces_prefix": wordpieces_prefix,
         }
@@ -117,7 +117,7 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
         logger.info("Parameters for training")
-        logger.info("\tdo_lowercase: {}".format(self._parameters["do_lowercase"]))
+        logger.info("\tdo_lower_case: {}".format(self._parameters["do_lower_case"]))
         logger.info("\tdo_nfkc: {}".format(self._parameters["do_nfkc"]))
         logger.info("\tvocab_size: {}".format(vocab_size))
         logger.info("\tmin_frequency: {}".format(min_frequency))
@@ -166,7 +166,7 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
 
         logger.info("Parameters for training")
         logger.info("\tvocab_size: {}".format(vocab_size))
-        logger.info("\tdo_lowercase: {}".format(self._parameters["do_lowercase"]))
+        logger.info("\tdo_lower_case: {}".format(self._parameters["do_lower_case"]))
         logger.info("\tdo_nfkc: {}".format(self._parameters["do_nfkc"]))
         logger.info("\tmin_frequency: {}".format(min_frequency))
         logger.info("\tlimit_alphabet: {}".format(limit_alphabet))

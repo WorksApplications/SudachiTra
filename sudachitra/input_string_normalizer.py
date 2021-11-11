@@ -16,14 +16,14 @@ from tokenizers.normalizers import Lowercase, NFKC, Sequence
 
 
 class InputStringNormalizer(object):
-    def __init__(self, do_lowercase=False, do_nfkc=False):
-        self.do_lowercase: bool = do_lowercase
+    def __init__(self, do_lower_case=False, do_nfkc=False):
+        self.do_lower_case: bool = do_lower_case
         self.do_nfkc: bool = do_nfkc
         self._normalizer: Sequence = self._init_normalizer()
 
     def _init_normalizer(self) -> Sequence:
         normalizers = []
-        if self.do_lowercase:
+        if self.do_lower_case:
             normalizers.append(Lowercase())
         if self.do_nfkc:
             normalizers.append(NFKC())

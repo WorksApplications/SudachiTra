@@ -193,7 +193,7 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
 
         self.lower_case = do_lower_case
         self.nfkc = do_nfkc
-        self.normalizer = InputStringNormalizer(do_nfkc=self.nfkc)
+        self.normalizer = InputStringNormalizer(do_lower_case=self.do_lower_case, do_nfkc=self.nfkc)
 
         self.sudachipy_kwargs = copy.deepcopy(sudachipy_kwargs)
         self.word_tokenizer = SudachipyWordTokenizer(**(self.sudachipy_kwargs or {}))
