@@ -117,6 +117,8 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
         logger.info("Parameters for training")
+        logger.info("\tdo_lowercase: {}".format(self._parameters["do_lowercase"]))
+        logger.info("\tdo_nfkc: {}".format(self._parameters["do_nfkc"]))
         logger.info("\tvocab_size: {}".format(vocab_size))
         logger.info("\tmin_frequency: {}".format(min_frequency))
         logger.info("\tlimit_alphabet: {}".format(limit_alphabet))
@@ -164,6 +166,8 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
 
         logger.info("Parameters for training")
         logger.info("\tvocab_size: {}".format(vocab_size))
+        logger.info("\tdo_lowercase: {}".format(self._parameters["do_lowercase"]))
+        logger.info("\tdo_nfkc: {}".format(self._parameters["do_nfkc"]))
         logger.info("\tmin_frequency: {}".format(min_frequency))
         logger.info("\tlimit_alphabet: {}".format(limit_alphabet))
         logger.info("\tinitial_alphabet: {}".format(",".join(initial_alphabet)))
