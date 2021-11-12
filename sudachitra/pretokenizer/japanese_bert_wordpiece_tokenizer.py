@@ -18,13 +18,13 @@ from typing import Dict, Iterator, List, Optional, TypeVar, Union
 from logzero import logger
 from tokenizers import Tokenizer, AddedToken, decoders, trainers
 from tokenizers.models import WordPiece
-from tokenizers.normalizers import Lowercase, NFKC, Sequence
 from tokenizers.pre_tokenizers import BertPreTokenizer, PreTokenizer
 from tokenizers.processors import BertProcessing
 from tokenizers.implementations import BertWordPieceTokenizer
 from tokenizers.implementations.base_tokenizer import BaseTokenizer
 
 from .sudachipy_pretokenizer import CustomPreTokenizer
+from ..input_string_normalizer import InputStringNormalizer
 
 
 CPT = TypeVar('CPT', bound=CustomPreTokenizer)
@@ -39,7 +39,8 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             cls_token: Union[str, AddedToken] = "[CLS]",
             pad_token: Union[str, AddedToken] = "[PAD]",
             mask_token: Union[str, AddedToken] = "[MASK]",
-            lowercase: bool = False,
+            do_lower_case: bool = False,
+            do_nfkc: bool = False,
             wordpieces_prefix: str = "##",
     ):
         if vocab is not None:
@@ -59,7 +60,8 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         if tokenizer.token_to_id(str(mask_token)) is not None:
             tokenizer.add_special_tokens([str(mask_token)])
 
-        tokenizer.normalizer = Sequence([NFKC()])
+        _normalizer = InputStringNormalizer(do_lower_case=do_lower_case, do_nfkc=do_nfkc)
+        tokenizer.normalizer = _normalizer.normalizer
         tokenizer.pre_tokenizer = BertPreTokenizer()
 
         if vocab is not None:
@@ -82,7 +84,8 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             "cls_token": cls_token,
             "pad_token": pad_token,
             "mask_token": mask_token,
-            "lowercase": lowercase,
+            "do_lower_case": do_lower_case,
+            "do_nfkc": do_nfkc,
             "wordpieces_prefix": wordpieces_prefix,
         }
 
@@ -114,6 +117,8 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
         logger.info("Parameters for training")
+        logger.info("\tdo_lower_case: {}".format(self._parameters["do_lower_case"]))
+        logger.info("\tdo_nfkc: {}".format(self._parameters["do_nfkc"]))
         logger.info("\tvocab_size: {}".format(vocab_size))
         logger.info("\tmin_frequency: {}".format(min_frequency))
         logger.info("\tlimit_alphabet: {}".format(limit_alphabet))
@@ -161,6 +166,8 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
 
         logger.info("Parameters for training")
         logger.info("\tvocab_size: {}".format(vocab_size))
+        logger.info("\tdo_lower_case: {}".format(self._parameters["do_lower_case"]))
+        logger.info("\tdo_nfkc: {}".format(self._parameters["do_nfkc"]))
         logger.info("\tmin_frequency: {}".format(min_frequency))
         logger.info("\tlimit_alphabet: {}".format(limit_alphabet))
         logger.info("\tinitial_alphabet: {}".format(",".join(initial_alphabet)))

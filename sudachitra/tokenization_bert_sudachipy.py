@@ -22,6 +22,7 @@ from transformers.models.bert_japanese.tokenization_bert_japanese import Charact
 from transformers.models.bert.tokenization_bert import WordpieceTokenizer
 from transformers.tokenization_utils import PreTrainedTokenizer
 
+from .input_string_normalizer import InputStringNormalizer
 from .sudachipy_word_tokenizer import SudachipyWordTokenizer
 
 
@@ -148,6 +149,7 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
             self,
             vocab_file,
             do_lower_case=False,
+            do_nfkc=False,
             do_word_tokenize=True,
             do_subword_tokenize=True,
             word_tokenizer_type="sudachipy",
@@ -163,6 +165,7 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
     ):
         super().__init__(
             do_lower_case=do_lower_case,
+            do_nfkc=do_nfkc,
             do_word_tokenize=do_word_tokenize,
             do_subword_tokenize=do_subword_tokenize,
             word_tokenizer_type=word_tokenizer_type,
@@ -189,6 +192,8 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
             raise ValueError(f"Invalid word_tokenizer_type '{word_tokenizer_type}' is specified.")
 
         self.lower_case = do_lower_case
+        self.nfkc = do_nfkc
+        self.normalizer = InputStringNormalizer(do_lower_case=self.do_lower_case, do_nfkc=self.nfkc)
 
         self.sudachipy_kwargs = copy.deepcopy(sudachipy_kwargs)
         self.word_tokenizer = SudachipyWordTokenizer(**(self.sudachipy_kwargs or {}))
@@ -211,6 +216,10 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
         return self.lower_case
 
     @property
+    def do_nfkc(self):
+        return self.nfkc
+
+    @property
     def vocab_size(self):
         return len(self.vocab)
 
@@ -229,6 +238,7 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
         self.word_tokenizer = SudachipyWordTokenizer(**(self.sudachipy_kwargs or {}))
 
     def _tokenize(self, text, **kwargs):
+        text = self.normalizer.normalize_str(text)
         tokens = self.word_tokenizer.tokenize(text)
         word_format = WORD_FORM_TYPES[self.word_form_type]
         if self.do_subword_tokenize:

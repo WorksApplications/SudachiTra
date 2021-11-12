@@ -35,7 +35,7 @@ def main():
         limit_alphabet=args.limit_alphabet
     )
 
-    wp_tokenizer = JapaneseBertWordPieceTokenizer()
+    wp_tokenizer = JapaneseBertWordPieceTokenizer(do_lower_case=args.do_lower_case, do_nfkc=args.do_nfkc)
 
     sudachi_pre_tokenizer = SudachipyPreTokenizer(
         split_mode=args.split_mode,
@@ -59,6 +59,12 @@ def get_args():
                         help='Input file to train tokenizer.')
     parser.add_argument('-d', '--input_dir', default='',
                         help='Input directory containing files to train tokenizer.')
+
+    # Normalizers
+    parser.add_argument('--do_lower_case', action='store_true', default=False,
+                        help='Replaces all uppercase to lowercase.')
+    parser.add_argument('--do_nfkc', action='store_true', default=False,
+                        help='NFKC unicode normalization.')
 
     # Parameters
     parser.add_argument('--vocab_size', type=int, default=32000,

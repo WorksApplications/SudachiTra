@@ -96,9 +96,9 @@ class SudachipyPreTokenizer(SudachipyWordTokenizer, CustomPreTokenizer):
             List[NormalizedString]: List of normalized_strings.
         """
         morphs = super().tokenize(str(normalized_string).strip())
-        tokens = list(map(lambda m: m.surface(), morphs))
+        tokens = [m.surface() for m in morphs if m.surface() != ""]
         normalized_strings = self.split_normalized_string(normalized_string, tokens)
-        if not (len(morphs) == len(tokens) == len(normalized_strings)):
+        if len(tokens) != len(normalized_strings):
             raise ValueError(len(morphs), len(tokens), len(normalized_strings), tokens, normalized_strings)
 
         if self.word_form_type != 'surface':
