@@ -33,5 +33,5 @@ class InputStringNormalizer(object):
     def normalizer(self) -> Sequence:
         return self._normalizer
 
-    def normalize(self, text: str) -> str:
+    def normalize_str(self, text: str) -> str:
         return self.normalizer.normalize_str(text)

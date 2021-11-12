@@ -238,7 +238,7 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
         self.word_tokenizer = SudachipyWordTokenizer(**(self.sudachipy_kwargs or {}))
 
     def _tokenize(self, text, **kwargs):
-        text = self.normalizer.normalize(text)
+        text = self.normalizer.normalize_str(text)
         tokens = self.word_tokenizer.tokenize(text)
         word_format = WORD_FORM_TYPES[self.word_form_type]
         if self.do_subword_tokenize:
