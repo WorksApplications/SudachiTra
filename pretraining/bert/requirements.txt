@@ -1,5 +1,5 @@
 # for pretraining bert
-bunkai~=1.4.0
+bunkai~=1.4.3
 pytextspan>=0.5.4
 tensorflow>=2.5.0
 tensorflow_datasets>=4.3.0
