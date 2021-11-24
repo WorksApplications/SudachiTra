@@ -1,3 +1,6 @@
 [submodule "pretraining/bert/models"]
 	path = pretraining/bert/models
 	url = https://github.com/t-yamamura/models.git
+[submodule "pretraining/bert/DeepLearningExamples"]
+	path = pretraining/bert/DeepLearningExamples
+	url = https://github.com/t-yamamura/DeepLearningExamples
