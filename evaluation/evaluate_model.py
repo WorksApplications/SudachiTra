@@ -7,13 +7,13 @@ from typing import Optional, List
 
 import numpy as np
 import tensorflow as tf
-from datasets import load_dataset as load_dataset
+from datasets import load_dataset as hf_load_dataset
 from transformers import (
     AutoConfig,
     AutoTokenizer,
     HfArgumentParser,
-    TFTrainingArguments,
     TFAutoModelForSequenceClassification,
+    TFTrainingArguments,
     set_seed,
 )
 from transformers.file_utils import CONFIG_NAME, TF2_WEIGHTS_NAME
@@ -73,12 +73,16 @@ class DataTrainingArguments:
     Arguments for data to use fine-tune and eval.
     """
 
-    train_file: str = field(
-        metadata={"help": "A csv file containing the training data."})
-    test_file: str = field(
-        metadata={"help": "A csv file containing the test data."})
+    dataset_dir: str = field(
+        metadata={"help": "A root directory where dataset files locate."}
+    )
+
+    train_file: Optional[str] = field(
+        default=None, metadata={"help": "A csv file containing the training data. Overwrites dataset_dir."})
+    test_file: Optional[str] = field(
+        default=None, metadata={"help": "A csv file containing the test data. Overwrites dataset_dir."})
     validation_file: Optional[str] = field(
-        default=None, metadata={"help": "A csv file containing the validation data."}
+        default=None, metadata={"help": "A csv file containing the validation data. Overwrites dataset_dir."}
     )
 
     learning_rate_list: Optional[List[float]] = field(
@@ -93,8 +97,8 @@ class DataTrainingArguments:
     max_seq_length: int = field(
         default=128,
         metadata={
-            "help": "The maximum total input sequence length after tokenization. Sequences longer "
-            "than this will be truncated, sequences shorter will be padded."
+            "help": "The maximum total input sequence length after tokenization. "
+            "Sequences longer than this will be truncated, sequences shorter will be padded."
         },
     )
     pad_to_max_length: bool = field(
@@ -126,16 +130,32 @@ class DataTrainingArguments:
     )
 
     def __post_init__(self):
-        train_extension = self.train_file.split(".")[-1].lower()
-        validation_extension = (
+        # search dataset_dir for data files
+        data_dir = Path(self.dataset_dir)
+        if self.train_file is None:
+            files = list(data_dir.glob("train*"))
+            self.train_file = sorted(files)[0] if len(files) > 0 else None
+        if self.validation_file is None:
+            files = list(data_dir.glob("dev*"))
+            self.validation_file = sorted(files)[0] if len(files) > 0 else None
+        if self.test_file is None:
+            files = list(data_dir.glob("test*"))
+            self.test_file = sorted(files)[0] if len(files) > 0 else None
+
+        # check extension of data files
+        extensions = {
+            self.train_file.split(
+                ".")[-1].lower() if self.train_file is not None else None,
             self.validation_file.split(
-                ".")[-1].lower() if self.validation_file is not None else None
-        )
-        test_extension = self.test_file.split(".")[-1].lower()
-        extensions = {train_extension, validation_extension, test_extension}
+                ".")[-1].lower() if self.validation_file is not None else None,
+            self.test_file.split(
+                ".")[-1].lower() if self.test_file is not None else None,
+        }
         extensions.discard(None)
-        assert {"csv"} == extensions, "All input files should be csv"
-        self.input_file_extension = extensions.pop()
+        assert len(extensions) == 1, "All  files should have same extension"
+        ext = extensions.pop()
+        assert ext in ["csv", "json"], "data file should be csv or json"
+        self.input_file_extension = ext
 
 
 def parse_args():
@@ -198,34 +218,23 @@ def detect_checkpoint(training_args):  # -> Optional[Path], int
         f"Directory ({ckpt_dir}) seems not checkpoint. Set overwrite_output_dir True to continue regardless")
 
 
-def load_csv_dataset(data_args, training_args):
-    data_files = dict()
-    if training_args.do_train:
-        if data_args.train_file is None:
-            raise ValueError(f"train_file is neccessary to train")
-        data_files["train"] = data_args.train_file
-    if training_args.do_eval:
-        if data_args.validation_file is None:
-            raise ValueError(f"validation_file is neccessary to eval")
-        data_files["validation"] = data_args.validation_file
-    if training_args.do_predict:
-        if data_args.test_file is None:
-            raise ValueError(f"test_file is neccessary to predict")
-        data_files["test"] = data_args.test_file
+def load_dataset(data_args, training_args):
+    do_step = {"train": training_args.do_train,
+               "validation": training_args.do_eval,
+               "test": training_args.do_predict}
+    data_files = {"train": data_args.trai_file,
+                  "validation": data_args.validation_file,
+                  "test": data_args.test_files}
+
+    for key in ["train", "validation", "test"]:
+        if do_step[key] and data_files[key] is None:
+            raise ValueError(f"{key}_file is necessary for {key}")
 
     data_files = {k: str(Path(v).resolve())
-                  for k, v in data_files.items() if v is not None}
-    dataset = load_dataset("csv", data_files=data_files)
-
-    # limit num_sample if specified
-    max_samples = {
-        "train": data_args.max_train_samples,
-        "validation": data_args.max_val_samples,
-        "test": data_args.max_test_samples,
-    }
-    for key in max_samples:
-        if key in dataset and max_samples[key] is not None:
-            dataset[key] = dataset[key].select(range(max_samples[key]))
+                  for k, v in data_files.items() if do_step[k]}
+    # "csv" and "json" are valid
+    dataset = hf_load_dataset(
+        data_args.input_file_extension, data_files=data_files)
 
     return dataset
 
@@ -268,14 +277,25 @@ def setup_config(model_args, checkpoint, label2id):
     return config
 
 
-def preprocess_dataset(dataset, column_names, tokenizer, max_seq_length, label2id=lambda x: x):
+def preprocess_dataset(dataset, column_names, data_args, tokenizer, label2id=lambda x: x):
+    # limit num_sample if specified
+    max_samples = {
+        "train": data_args.max_train_samples,
+        "validation": data_args.max_val_samples,
+        "test": data_args.max_test_samples,
+    }
+    for key in max_samples:
+        if key in dataset and max_samples[key] is not None:
+            dataset[key] = dataset[key].select(range(max_samples[key]))
+
+    # tokenize sentences
+    max_length = min(tokenizer.model_max_length, data_args.max_seq_length)
+
     def subfunc(examples):
-        # Tokenize texts (2 columns maximum)
+        # Tokenize texts (first 2 columns maximum)
         texts = (examples[c]
                  for c in [l for l in column_names if l != "label"][:2])
-        max_length = min(tokenizer.model_max_length, max_seq_length)
-        result = tokenizer(
-            *texts, max_length=max_length, truncation=True)
+        result = tokenizer(*texts, max_length=max_length, truncation=True)
 
         # Map labels to ids
         if "label" in examples:
@@ -438,16 +458,17 @@ def main():
     output_root.mkdir(parents=True, exist_ok=True)
 
     tokenizer = setup_tokenizer(model_args)
-    dataset = load_csv_dataset(data_args, training_args)
+    dataset = load_dataset(data_args, training_args)
 
     logger.info(f"preprocess data:")
     # create labelset. assume that data files has same column names
-    column_names = dataset.column_names["train"]
-    label_list = dataset["test"].unique("label")
+    dataset_key = list(dataset.keys())[0]  # at least one data file exists
+    column_names = dataset[dataset_key].column_names
+    label_list = dataset[dataset_key].unique("label")
     label2id = {l: i for i, l in enumerate(label_list)}
 
     dataset = preprocess_dataset(
-        dataset, column_names, tokenizer, data_args.max_seq_length, label2id)
+        dataset, column_names, data_args, tokenizer, label2id)
 
     if training_args.do_train:
         for learning_rate, batch_size in it.product(data_args.learning_rate_list, data_args.batch_size_list):
