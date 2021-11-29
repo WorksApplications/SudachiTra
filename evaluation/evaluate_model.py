@@ -402,13 +402,6 @@ class SaveModelCallback(tf.keras.callbacks.Callback):
 
 def finetune_model(model, tf_data, training_args, done_epochs):
     rest_epochs = int(training_args.num_train_epochs) - done_epochs
-    if rest_epochs <= 0:
-        logger.info(
-            f"saved model already trained {done_epochs} epochs. skip fine-tuning.")
-        return model
-    if done_epochs > 0:
-        logger.info(f"continue fine-tuning from epoch {done_epochs+1}")
-
     callbacks = [SaveModelCallback(training_args, done_epochs)]
     model.fit(
         tf_data["train"],
@@ -465,6 +458,14 @@ def main():
                 f"finetune model: learning_rate: {learning_rate}, batch_size: {batch_size}")
 
             checkpoint, done_epochs = detect_checkpoint(training_args)
+            rest_epochs = int(training_args.num_train_epochs) - done_epochs
+            if rest_epochs <= 0:
+                logger.info(
+                    f"saved model already trained {done_epochs} epochs. skip fine-tuning.")
+                continue
+            if done_epochs > 0:
+                logger.info(f"continue fine-tuning from epoch {done_epochs+1}")
+
             config = setup_config(model_args, checkpoint, label2id)
             model_path = model_args.model_name_or_path if checkpoint is None else checkpoint
 
