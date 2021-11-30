@@ -1,6 +1,7 @@
 import argparse as ap
 import logging
 import sys
+from collections import defaultdict as ddict
 from pathlib import Path
 
 from datasets import load_dataset, DatasetDict
@@ -15,31 +16,31 @@ logging.basicConfig(
 logger.setLevel(logging.INFO)
 
 
-# convert funcs
 def convert_amazon(args):
-    dataset_file = Path(args.dataset_dir_or_file)
-    FILE_NAME = "amazon_reviews_multilingual_JP_v1_00.tsv"
-    if dataset_file.is_dir():
-        dataset_file = dataset_file / FILE_NAME
-    if not dataset_file.exists() or dataset_file.name != FILE_NAME:
-        raise ValueError(f"file {FILE_NAME} does not found in dataset_dir. "
-                         "Download and unzip it first (https://s3.amazonaws.com/amazon-reviews-pds/readme.html).")
+    # convert Amazon Review Corpus (https://registry.opendata.aws/amazon-reviews-ml/)
 
-    dataset = load_dataset("csv", data_files=str(
-        dataset_file), delimiter='\t')["train"]
+    if args.dataset_dir_or_file is None:
+        # TODO: load from HF hub (https://huggingface.co/datasets/amazon_reviews_multi)
+        raise ValueError(f"input data file is necessary for this dataset")
+    else:
+        dataset_file = Path(args.dataset_dir_or_file)
+        FILE_NAME = "amazon_reviews_multilingual_JP_v1_00.tsv"
+        if dataset_file.is_dir():
+            dataset_file = dataset_file / FILE_NAME
+        if not dataset_file.exists() or dataset_file.name != FILE_NAME:
+            raise ValueError(f"file {FILE_NAME} does not exixts. "
+                             f"Download and unzip it first (https://s3.amazonaws.com/amazon-reviews-pds/readme.html).")
+
+        dataset = load_dataset("csv", data_files=str(
+            dataset_file), delimiter="\t")["train"]
 
     dataset = select_column(dataset, {
         "review_body": "sentence1",
         "star_rating": "label",
     })
 
-    # shuffle if seed is given
-    if args.seed is not None:
-        logger.info(f"shuffle data with seed {args.seed}")
-        dataset = dataset.shuffle(seed=args.seed)
-
+    dataset = shuffle_dataset(dataset, args.seed)
     dataset = split_dataset(dataset, args.split_rate)
-
     return dataset
 
 
@@ -49,7 +50,6 @@ def convert_livedoor(args):
     return
 
 
-# util funcs
 def select_column(dataset, rename_map):
     dataset = dataset.remove_columns(
         [c for c in dataset.column_names if c not in rename_map])
@@ -60,12 +60,25 @@ def select_column(dataset, rename_map):
     return dataset
 
 
+def shuffle_dataset(dataset, seed):
+    # shuffle if seed is given
+    if seed is not None:
+        logger.info(f"shuffle data with seed {seed}.")
+        return dataset.shuffle(seed=seed)
+    else:
+        logger.info(f"skip shuffle. set seed to shuffle.")
+        return dataset
+
+
 def split_dataset(dataset, split_rate_str):
     logger.info(f"whole data count: {len(dataset)}")
     # split into 3 parts
     # ref: https://discuss.huggingface.co/t/how-to-split-main-dataset-into-train-dev-test-as-datasetdict/1090
-    v_train, v_val, v_test = (int(v) for v in split_rate_str.split("/"))
 
+    DEFAULT_SPLIT_RATE = "8/1/1"
+    split_rate_str = split_rate_str or DEFAULT_SPLIT_RATE
+
+    v_train, v_val, v_test = (int(v) for v in split_rate_str.split("/"))
     if not (v_train > 0 and v_val >= 0 and v_test > 0):
         raise ValueError(f"invalid data split rate: {split_rate_str}. "
                          "train and test rate must be non-zero.")
@@ -106,7 +119,6 @@ def save_dataset(dataset, output_dir, output_format):
             continue
 
         out_file = output_dir / f"{key}.{output_format}"
-
         if output_format == "csv":
             dataset[key].to_csv(out_file, index=False)
         elif output_format == "json":
@@ -115,40 +127,57 @@ def save_dataset(dataset, output_dir, output_format):
     return
 
 
-DATASET_FUNCS = {"amazon": convert_amazon}
+DATASET_FUNCS = {
+    "amazon": convert_amazon,
+}
 OUTPUT_FORMATS = ["csv", "json"]
 
 
 def parse_args():
     parser = ap.ArgumentParser()
     parser.add_argument(dest="dataset_name", type=str,
-                        help="target dataset name")
-    parser.add_argument(dest="dataset_dir_or_file", type=str,
-                        help="directory where the raw data locate")
-    parser.add_argument(dest="output_dir", type=str, help="output directory")
+                        help="Target dataset name. Set \"list\" to list available datasets.")
 
-    parser.add_argument('-s', "--seed", type=int,
-                        default=None, help="random seed")
-    parser.add_argument('-f', "--output-format", type=str,
-                        default="csv", help="output format")
+    parser.add_argument("-i", "--input", dest="dataset_dir_or_file", type=str,
+                        help="Raw data file or directory contains it.")
+    parser.add_argument("-o", "--output", dest="output_dir", type=str, default="./output",
+                        help="Output directory.")
+    parser.add_argument("-s", "--seed", type=int,
+                        help="Random seed for shuffle. DO NOT shuffle if not set.")
     parser.add_argument("-r", "--split-rate", type=str,
-                        default="8/1/1", help="split rate for train/validation/test data. 8/1/1 by default.")
+                        help="Split rate for train/validation/test data. "
+                        "By default use dataset specific split if exists, 8/1/1 otherwise.")
+    parser.add_argument("-f", "--output-format", type=str, default="csv",
+                        help="Output data format. csv or json. csv by defaul.")
+
+    parser.add_argument("--overwrite", action="store_true",
+                        help="Overwrite output files when they already exist.")
 
     args = parser.parse_args()
-
-    # check
-    if args.dataset_name not in DATASET_FUNCS:
-        raise ValueError(f"unknown dataset name ({args.dataset_name}). "
-                         f"It must be one of {list(DATASET_FUNCS.keys())}")
-    if args.output_format not in OUTPUT_FORMATS:
-        raise ValueError(f"unknown dataset name ({args.output_format}). "
-                         f"It must be one of {OUTPUT_FORMATS}")
-
     return args
 
 
 def main():
     args = parse_args()
+
+    if args.dataset_name == "list":
+        for nm in DATASET_FUNCS.keys():
+            print(nm)
+        return
+
+    # check
+    if args.dataset_name not in DATASET_FUNCS:
+        raise ValueError(f"unknown dataset name ({args.dataset_name}). "
+                         f"It must be one of {list(DATASET_FUNCS.keys())} or \"list\"")
+    if args.output_format not in OUTPUT_FORMATS:
+        raise ValueError(f"unknown dataset name ({args.output_format}). "
+                         f"It must be one of {OUTPUT_FORMATS}")
+    if not args.overwrite:
+        for key in ("train", "dev", "test"):
+            out_file = Path(args.output_dir) / f"{key}.{args.output_format}"
+            if out_file.exists():
+                raise ValueError(
+                    f"File {out_file} already exists. Set --overwrite to continue anyway.")
 
     convert_func = DATASET_FUNCS[args.dataset_name]
     dataset = convert_func(args)
