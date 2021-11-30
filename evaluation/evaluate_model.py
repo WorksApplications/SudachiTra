@@ -12,13 +12,17 @@ from transformers import (
     AutoConfig,
     AutoTokenizer,
     HfArgumentParser,
+    TFAutoModelForQuestionAnswering,
     TFAutoModelForSequenceClassification,
     TFTrainingArguments,
     set_seed,
 )
 from transformers.file_utils import CONFIG_NAME, TF2_WEIGHTS_NAME
+from transformers.utils import check_min_version
 from sudachitra.tokenization_bert_sudachipy import BertSudachipyTokenizer
 
+
+check_min_version("4.13.0.dev0")
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -27,6 +31,11 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger.setLevel(logging.INFO)
+
+dataset_info = {
+    "amazon": {"task": "classification"},
+    "rcqa": {"task": "qa"},
+}
 
 
 @dataclass
@@ -76,13 +85,19 @@ class DataTrainingArguments:
     dataset_dir: str = field(
         metadata={"help": "A root directory where dataset files locate."}
     )
-
     train_file: Optional[str] = field(
         default=None, metadata={"help": "A csv file containing the training data. Overwrites dataset_dir."})
     test_file: Optional[str] = field(
         default=None, metadata={"help": "A csv file containing the test data. Overwrites dataset_dir."})
     validation_file: Optional[str] = field(
         default=None, metadata={"help": "A csv file containing the validation data. Overwrites dataset_dir."}
+    )
+
+    dataset_name: Optional[str] = field(
+        default=None, metadata={"help": "A identifier of dataset."}
+    )
+    task_type: Optional[str] = field(
+        default=None, metadata={"help": "Task type of dataset."}
     )
 
     learning_rate_list: Optional[List[float]] = field(
@@ -130,6 +145,12 @@ class DataTrainingArguments:
     )
 
     def __post_init__(self):
+        # set tasktype
+        if self.dataset_name is None or self.dataset_name not in dataset_info:
+            assert self.task_type is not None, "task_type is necessary if dataset_name is not set."
+        else:
+            self.task_type = dataset_info[self.dataset_name]["task"]
+
         # search dataset_dir for data files
         data_dir = Path(self.dataset_dir)
         if self.train_file is None:
@@ -152,9 +173,9 @@ class DataTrainingArguments:
                 ".")[-1].lower() if self.test_file is not None else None,
         }
         extensions.discard(None)
-        assert len(extensions) == 1, "All  files should have same extension"
+        assert len(extensions) == 1, "All input files should have same extension."
         ext = extensions.pop()
-        assert ext in ["csv", "json"], "data file should be csv or json"
+        assert ext in ["csv", "json"], "data file should be csv or json."
         self.input_file_extension = ext
 
 
@@ -257,28 +278,25 @@ def setup_tokenizer(model_args):
     return tokenizer
 
 
-def setup_config(model_args, checkpoint, label2id):
-    if checkpoint is not None:
-        config_path = checkpoint
-    elif model_args.config_name is not None:
-        config_path = model_args.config_name
+def setup_config(model_args, data_args):
+    config_path = model_args.config_name or model_args.model_name_or_path
+
+    if data_args.task_type == "classfication":
+        config = AutoConfig.from_pretrained(
+            config_path,
+            num_labels=len(data_args.label2id),
+        )
+        # add label <-> id mapping
+        config.label2id = data_args.label2id
+        config.id2label = {i: l for l, i in data_args.label2id.items()}
     else:
-        config_path = model_args.model_name_or_path
-
-    config = AutoConfig.from_pretrained(
-        config_path,
-        num_labels=len(label2id),
-    )
-
-    # setup label <-> id mapping
-    config.label2id = label2id
-    config.id2label = {i: l for l, i in label2id.items()}
+        config = AutoConfig.from_pretrained(config_path,)
 
     return config
 
 
-def preprocess_dataset(dataset, column_names, data_args, tokenizer, label2id=lambda x: x):
-    # limit num_sample if specified
+def preprocess_dataset(dataset, data_args, tokenizer):
+    # limit number of samples if specified
     max_samples = {
         "train": data_args.max_train_samples,
         "validation": data_args.max_val_samples,
@@ -289,26 +307,50 @@ def preprocess_dataset(dataset, column_names, data_args, tokenizer, label2id=lam
             dataset[key] = dataset[key].select(range(max_samples[key]))
 
     # tokenize sentences
+    if data_args.max_seq_length > tokenizer.model_max_length:
+        logger.warning(f"max_seq_length ({data_args.max_seq_length}) is larger than the "
+                       f"model maximum length ({tokenizer.model_max_length}). Use latter.")
     max_length = min(tokenizer.model_max_length, data_args.max_seq_length)
 
+    if data_args.task_type == "classification":
+        dataset = prepare_classification(
+            dataset, data_args, tokenizer, max_length)
+    else:
+        raise NotImplementedError(f"{data_args.task_type}")
+
+    return dataset
+
+
+def prepare_classification(dataset, data_args, tokenizer, max_length):
+    # select columns to tokenize
+    dataset_name = list(dataset.keys())[0]
+    data_columns = [
+        c for c in dataset[dataset_name].column_names if c != "label"]
+    if "sentence1" in data_columns:
+        if "sentence2" in data_columns:
+            column_names = ["sentence1", "sentence2"]
+        else:
+            column_names = ["sentence1"]
+    else:
+        column_names = data_columns[:2]
+
     def subfunc(examples):
-        # Tokenize texts (first 2 columns maximum)
-        texts = (examples[c]
-                 for c in [l for l in column_names if l != "label"][:2])
+        # Tokenize texts
+        texts = (examples[c] for c in column_names)
         result = tokenizer(*texts, max_length=max_length, truncation=True)
 
         # Map labels to ids
         if "label" in examples:
             result["label"] = [
-                (label2id[l] if l != -1 else -1) for l in examples["label"]]
+                (data_args.label2id[l] if l != -1 else -1) for l in examples["label"]]
         return result
 
-    dataset = dataset.map(subfunc, batched=True)
+    dataset = dataset.map(subfunc, batched=True, remove_columns=data_columns)
     return dataset
 
 
 def convert_dataset_for_tensorflow(
-    dataset, ignore_column_names, batch_size, dataset_mode="variable_batch", shuffle=True, drop_remainder=True
+    dataset, batch_size, dataset_mode="variable_batch", shuffle=True, drop_remainder=False
 ):
     def densify_ragged_batch(features, label=None):
         features = {
@@ -320,8 +362,7 @@ def convert_dataset_for_tensorflow(
             return features, label
 
     # trim input length for each batch
-    feature_keys = list(set(dataset.features.keys()) -
-                        set(ignore_column_names + ["label"]))
+    feature_keys = list(set(dataset.features.keys()) - {"label"})
     if dataset_mode == "variable_batch":
         batch_shape = {key: None for key in feature_keys}
         data = {key: tf.ragged.constant(dataset[key]) for key in feature_keys}
@@ -354,7 +395,7 @@ def convert_dataset_for_tensorflow(
     return tf_dataset
 
 
-def convert_datasets(dataset, ignore_column_names, data_args, training_args):
+def convert_datasets(dataset, data_args, training_args):
     tf_data = dict()
     for key in ("train", "validation", "test"):
         if key not in dataset:
@@ -378,10 +419,9 @@ def convert_datasets(dataset, ignore_column_names, data_args, training_args):
 
         tf_data[key] = convert_dataset_for_tensorflow(
             dataset[key],
-            ignore_column_names=ignore_column_names,
-            shuffle=shuffle,
-            dataset_mode=dataset_mode,
             batch_size=batch_size,
+            dataset_mode=dataset_mode,
+            shuffle=shuffle,
             drop_remainder=drop_remainder,
         )
     return tf_data
@@ -453,30 +493,44 @@ def main():
     logger.info(f"data args {data_args}")
     logger.info(f"training args {training_args}")
 
+    #
+    if data_args.dataset_name == "list":
+        logger.info(f"dataset_names implemented:")
+        for nm in dataset_info:
+            logger.info(f"{nm}")
+        return
+    if data_args.dataset_name not in dataset_info:
+        logger.error(f"dataset_name passed ({data_args.dataset_name}) is not implemented. "
+                     f"It must be one of {list(dataset_info.keys())} or \"list\".")
+        return
+
+    set_seed(training_args.seed)
+
     logger.info(f"load components:")
     output_root = Path(training_args.output_dir)
     output_root.mkdir(parents=True, exist_ok=True)
 
-    tokenizer = setup_tokenizer(model_args)
     dataset = load_dataset(data_args, training_args)
+    if data_args.task_type == "classfication":
+        dataset_key = list(dataset.keys())[0]  # at least one data file exists
+        # column_names = dataset[dataset_key].column_names
+        label_list = dataset[dataset_key].unique("label")
+        data_args.label2id = {l: i for i, l in enumerate(label_list)}
+
+    config = setup_config(model_args, data_args)
+    tokenizer = setup_tokenizer(model_args)
 
     logger.info(f"preprocess data:")
-    # create labelset. assume that data files has same column names
-    dataset_key = list(dataset.keys())[0]  # at least one data file exists
-    column_names = dataset[dataset_key].column_names
-    label_list = dataset[dataset_key].unique("label")
-    label2id = {l: i for i, l in enumerate(label_list)}
-
-    dataset = preprocess_dataset(
-        dataset, column_names, data_args, tokenizer, label2id)
+    dataset = preprocess_dataset(dataset, data_args, tokenizer)
 
     if training_args.do_train:
+        logger.info(f"finetune model:")
         for learning_rate, batch_size in it.product(data_args.learning_rate_list, data_args.batch_size_list):
             training_args.learning_rate = learning_rate
             training_args.per_device_train_batch_size = batch_size
 
             logger.info(
-                f"finetune model: learning_rate: {learning_rate}, batch_size: {batch_size}")
+                f"learning_rate: {learning_rate}, batch_size: {batch_size}")
 
             checkpoint, done_epochs = detect_checkpoint(training_args)
             rest_epochs = int(training_args.num_train_epochs) - done_epochs
@@ -487,22 +541,18 @@ def main():
             if done_epochs > 0:
                 logger.info(f"continue fine-tuning from epoch {done_epochs+1}")
 
-            config = setup_config(model_args, checkpoint, label2id)
             model_path = model_args.model_name_or_path if checkpoint is None else checkpoint
 
             with training_args.strategy.scope():
-                set_seed(training_args.seed)
-                tf_data = convert_datasets(
-                    dataset, column_names, data_args, training_args)
+                tf_data = convert_datasets(dataset, data_args, training_args)
                 model = setup_model(model_path, config,
                                     training_args, model_args.from_pt)
                 model = finetune_model(
                     model, tf_data, training_args, done_epochs)
 
     if training_args.do_predict:
-        logger.info(f"predict with each models")
-        tf_data = convert_datasets(
-            dataset, column_names, data_args, training_args)
+        logger.info(f"predict with test data:")
+        tf_data = convert_datasets(dataset, data_args, training_args)
         eval_results = dict()
         for learning_rate, batch_size, n_epoch in it.product(
                 data_args.learning_rate_list, data_args.batch_size_list, range(int(training_args.num_train_epochs))):
