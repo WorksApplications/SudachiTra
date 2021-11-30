@@ -89,27 +89,23 @@ def convert_rcqa(args):
             for c in clms:
                 outputs[c].extend((examples[c][i] for _ in range(len(docs))))
             outputs["documents"].extend(docs)
-            outputs["did"].extend(range(1, len(docs)+1))
+            outputs["doc_id"].extend(range(1, len(docs)+1))
         return outputs
     dataset = dataset.map(flatten_doc, batched=True).flatten()
 
     # arrange data structure
     def convert(example):
-        qid = f'{example["qid"]}{example["did"]:04d}'
+        qid = f'{example["qid"]}{example["doc_id"]:04d}'
         is_impossible = example["documents.score"] < 2
         if not is_impossible:
             answer_start = example["documents.text"].index(example["answer"])
         return {
+            "id": qid,
             "title": qid,
-            "paragraphs": [{
-                "context": example["documents.text"],
-                "qas": [{
-                    "id": qid,
-                    "question": example["question"],
-                    "is_impossible": is_impossible,
-                    "answers": [{"text": example["answer"], "answer_start": answer_start}] if not is_impossible else []
-                }]
-            }]
+            "context": example["documents.text"],
+            "question": example["question"],
+            "answers": {"text": [example["answer"]] if not is_impossible else [],
+                        "answer_start": [answer_start] if not is_impossible else [], },
         }
     dataset = dataset.map(
         convert, remove_columns=dataset["train"].column_names)
@@ -235,17 +231,20 @@ def main():
 
     # check
     if args.dataset_name not in DATASET_FUNCS:
-        raise ValueError(f"unknown dataset name ({args.dataset_name}). "
-                         f"It must be one of {list(DATASET_FUNCS.keys())} or \"list\"")
+        logger.error(f"unknown dataset name ({args.dataset_name}). "
+                     f"It must be one of {list(DATASET_FUNCS.keys())} or \"list\"")
+        return
     if args.output_format not in OUTPUT_FORMATS:
-        raise ValueError(f"unknown dataset name ({args.output_format}). "
-                         f"It must be one of {OUTPUT_FORMATS}")
+        logger.error(f"unknown dataset name ({args.output_format}). "
+                     f"It must be one of {OUTPUT_FORMATS}")
+        return
     if not args.overwrite:
         for key in ("train", "dev", "test"):
             out_file = Path(args.output_dir) / f"{key}.{args.output_format}"
             if out_file.exists():
-                raise ValueError(
+                logger.error(
                     f"File {out_file} already exists. Set --overwrite to continue anyway.")
+                return
 
     convert_func = DATASET_FUNCS[args.dataset_name]
     dataset = convert_func(args)
