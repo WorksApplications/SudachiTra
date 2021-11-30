@@ -50,6 +50,73 @@ def convert_livedoor(args):
     return
 
 
+def convert_rcqa(args):
+    # convert 解答可能性付き読解 dataset (http://www.cl.ecei.tohoku.ac.jp/rcqa/),
+    # following NICT's experiment (https://alaginrc.nict.go.jp/nict-bert/Experiments_on_RCQA.html).
+    # also refer: https://github.com/tsuchm/nict-bert-rcqa-test
+
+    if args.dataset_dir_or_file is None:
+        raise ValueError(f"input data file is necessary for this dataset")
+
+    dataset_file = Path(args.dataset_dir_or_file)
+    FILE_NAME = "all-v1.0.json.gz"
+    if dataset_file.is_dir():
+        dataset_file = dataset_file / FILE_NAME
+    if not dataset_file.exists():
+        raise ValueError(f"file {dataset_file} does not exists. "
+                         f"Download it from http://www.cl.ecei.tohoku.ac.jp/rcqa/all-v1.0.json.gz")
+
+    dataset = load_dataset("json", data_files=str(dataset_file))["train"]
+
+    if args.split_rate is None:
+        # split by timestamp, following NICT's experiment
+        dataset = DatasetDict({
+            "train": dataset.filter(lambda row: row["timestamp"] < "2009"),
+            "dev": dataset.filter(lambda row: "2009" <= row["timestamp"] < "2010"),
+            "test": dataset.filter(lambda row: "2010" <= row["timestamp"]),
+        })
+        for key in dataset:
+            logger.info(f"data count for {key} split: {len(dataset[key])}")
+    else:
+        dataset = shuffle_dataset(dataset, args.seed)
+        dataset = split_dataset(dataset, args.split_rate)
+
+    # flatten documents column
+    def flatten_doc(examples):
+        outputs = ddict(list)
+        clms = [c for c in examples if c != "documents"]
+        for i, docs in enumerate(examples["documents"]):
+            for c in clms:
+                outputs[c].extend((examples[c][i] for _ in range(len(docs))))
+            outputs["documents"].extend(docs)
+            outputs["did"].extend(range(1, len(docs)+1))
+        return outputs
+    dataset = dataset.map(flatten_doc, batched=True).flatten()
+
+    # arrange data structure
+    def convert(example):
+        qid = f'{example["qid"]}{example["did"]:04d}'
+        is_impossible = example["documents.score"] < 2
+        if not is_impossible:
+            answer_start = example["documents.text"].index(example["answer"])
+        return {
+            "title": qid,
+            "paragraphs": [{
+                "context": example["documents.text"],
+                "qas": [{
+                    "id": qid,
+                    "question": example["question"],
+                    "is_impossible": is_impossible,
+                    "answers": [{"text": example["answer"], "answer_start": answer_start}] if not is_impossible else []
+                }]
+            }]
+        }
+    dataset = dataset.map(
+        convert, remove_columns=dataset["train"].column_names)
+
+    return dataset
+
+
 def select_column(dataset, rename_map):
     dataset = dataset.remove_columns(
         [c for c in dataset.column_names if c not in rename_map])
@@ -129,6 +196,7 @@ def save_dataset(dataset, output_dir, output_format):
 
 DATASET_FUNCS = {
     "amazon": convert_amazon,
+    "rcqa": convert_rcqa,
 }
 OUTPUT_FORMATS = ["csv", "json"]
 
