@@ -8,20 +8,19 @@ from typing import Optional, List
 
 import numpy as np
 import tensorflow as tf
-import textspan
 from datasets import load_dataset as hf_load_dataset
 from transformers import (
     AutoConfig,
     AutoTokenizer,
     HfArgumentParser,
-    PreTrainedTokenizerFast,
-    TFAutoModelForQuestionAnswering,
-    TFAutoModelForSequenceClassification,
     TFTrainingArguments,
     set_seed,
 )
 from transformers.file_utils import CONFIG_NAME, TF2_WEIGHTS_NAME
 from sudachitra.tokenization_bert_sudachipy import BertSudachipyTokenizer
+
+import classification_utils
+import qa_utils
 
 
 logger = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ logger.setLevel(logging.INFO)
 
 
 class TaskType(Enum):
-    CLASSIFICATION = "classfication"
+    CLASSIFICATION = "classification"
     QA = "qa"
 
 
@@ -320,7 +319,7 @@ def setup_tokenizer(model_args):
 def setup_config(model_args, checkpoint, data_args):
     config_path = checkpoint or model_args.config_name or model_args.model_name_or_path
 
-    if data_args.task_type == "classfication":
+    if data_args.task_type == TaskType.CLASSIFICATION:
         config = AutoConfig.from_pretrained(
             config_path,
             num_labels=len(data_args.label2id),
@@ -352,153 +351,14 @@ def preprocess_dataset(dataset, data_args, tokenizer):
     max_length = min(tokenizer.model_max_length, data_args.max_seq_length)
 
     if data_args.task_type == TaskType.CLASSIFICATION:
-        dataset = prepare_classification(
+        dataset = classification_utils.preprocess_dataset(
             dataset, data_args, tokenizer, max_length)
     elif data_args.task_type == TaskType.QA:
-        dataset = prepare_qa(dataset, data_args, tokenizer, max_length)
+        dataset = qa_utils.preprocess_dataset(
+            dataset, data_args, tokenizer, max_length)
     else:
         raise ValueError(f"Unknown task type: {data_args.task_type}.")
 
-    return dataset
-
-
-def prepare_classification(dataset, data_args, tokenizer, max_length):
-    # select columns to tokenize
-    dataset_name = list(dataset.keys())[0]
-    data_columns = [
-        c for c in dataset[dataset_name].column_names if c != "label"]
-    if "sentence1" in data_columns:
-        if "sentence2" in data_columns:
-            column_names = ["sentence1", "sentence2"]
-        else:
-            column_names = ["sentence1"]
-    else:
-        column_names = data_columns[:2]
-
-    def subfunc(examples):
-        # Tokenize texts
-        texts = (examples[c] for c in column_names)
-        result = tokenizer(*texts, max_length=max_length, truncation=True)
-
-        # Map labels to ids
-        if "label" in examples:
-            result["label"] = [
-                (data_args.label2id[l] if l != -1 else -1) for l in examples["label"]]
-        return result
-
-    dataset = dataset.map(subfunc, batched=True, remove_columns=data_columns)
-    return dataset
-
-
-def prepare_qa(dataset, data_args, tokenizer, max_length):
-    dataset_name = list(dataset.keys())[0]
-    column_names = dataset[dataset_name].column_names
-
-    # decide columns following huggingface example
-    question_column = "question" if "question" in column_names else column_names[0]
-    context_column = "context" if "context" in column_names else column_names[1]
-    answer_column = "answers" if "answers" in column_names else column_names[2]
-
-    is_fast_tokenizer = isinstance(tokenizer, PreTrainedTokenizerFast)
-
-    def subfunc(examples):
-        # strip question
-        examples[question_column] = [q.lstrip()
-                                     for q in examples[question_column]]
-
-        # tokenize
-        result = tokenizer(
-            examples[question_column],
-            examples[context_column],
-            max_length=max_length,
-            stride=data_args.doc_stride,
-            return_overflowing_tokens=is_fast_tokenizer,
-            return_offsets_mapping=is_fast_tokenizer,
-            padding="max_length" if data_args.pad_to_max_length else False,
-        )
-
-        # when using PreTrainedTokenizerFast, one example might have multiple samples if it has a long context.
-        # this is mapping from them to original example id.
-        sample_mapping = result.pop(
-            "overflow_to_sample_mapping", list(range(len(examples[question_column]))))
-
-        # mapping from each tokens to their span in the original text
-        offset_mapping = result.pop("offset_mapping", None)
-        if offset_mapping is None:
-            # construct manually, since offset_mapping is not available for PreTrainedTokenizer
-            # this may fail due to unk_token or normalization process of tokenizer
-            reset_token_ids = [tokenizer.sep_token_id,
-                               tokenizer.pad_token_id, tokenizer.cls_token_id]
-            offset_mapping = []
-            for question, context, input_ids, token_types in zip(
-                    examples[question_column], examples[context_column], result["input_ids"], result["token_type_ids"]):
-                tokens = tokenizer.convert_ids_to_tokens(input_ids)
-
-                split_idx = token_types.index(1)
-                ids_q = input_ids[:split_idx]
-                ids_c = input_ids[split_idx:]
-                spans_q = textspan.get_original_spans(
-                    tokens[:split_idx], question)
-                spans_c = textspan.get_original_spans(
-                    tokens[split_idx:], context)
-
-                offsets = []
-                for z in (zip(ids_q, spans_q), zip(ids_c, spans_c)):
-                    for i, (id, spans) in enumerate(z):
-                        if id in reset_token_ids:
-                            offsets.append((0, 0))
-                        elif len(spans) > 0:
-                            offsets.append(spans[0])
-                        else:
-                            # complement based on prev/next span if none found.
-                            # if prev/next is null, add empty span
-                            begin = 0 if i == 0 else offsets[-1][1]
-                            end = begin if (
-                                i+1 >= len(spans_q) or len(spans_q[i+1]) == 0) else spans_q[i+1][0]
-                            offsets.append((begin, end))
-                offset_mapping.append(offsets)
-
-        result["start_positions"] = []
-        result["end_positions"] = []
-        for i, offsets in enumerate(offset_mapping):
-            # use position of CLS token as answer for impossible qa
-            input_ids = result["input_ids"][i]
-            cls_index = input_ids.index(tokenizer.cls_token_id)
-
-            answers = examples[answer_column][sample_mapping[i]]
-            if len(answers["answer_start"]) == 0:
-                # no answer, i.e. impossible to answer
-                result["start_positions"].append(cls_index)
-                result["end_positions"].append(cls_index)
-                continue
-
-            # only consider first answer
-            start_char = answers["answer_start"][0]
-            end_char = start_char + len(answers["text"][0])
-
-            # is [0, .., 0, 1, .., 1 (, 0, ..,0)], where 1 for tokens from context, 0s at last exists if padded
-            token_types = result["token_type_ids"][i]
-            token_start_idx = token_types.index(1)
-            token_end_idx = len(token_types) - 1
-            while token_types[token_end_idx] != 1:
-                token_end_idx -= 1
-            token_end_idx -= 1  # skip sep_token at last
-
-            if not (offsets[token_start_idx][0] <= start_char and offsets[token_end_idx][1] >= end_char):
-                result["start_positions"].append(cls_index)
-                result["end_positions"].append(cls_index)
-                continue
-
-            while token_start_idx < len(offsets) and offsets[token_start_idx][0] <= start_char:
-                token_start_idx += 1
-            while offsets[token_end_idx][1] >= end_char:
-                token_end_idx -= 1
-            result["start_positions"].append(token_start_idx - 1)
-            result["end_positions"].append(token_end_idx + 1)
-
-        return result
-
-    dataset = dataset.map(subfunc, batched=True, remove_columns=column_names)
     return dataset
 
 
@@ -580,24 +440,19 @@ def convert_datasets(dataset, data_args, training_args):
     return tf_data
 
 
-def setup_model(model_name_or_path, config, training_args, from_pt=False):
-    model = TFAutoModelForSequenceClassification.from_pretrained(
-        model_name_or_path,
-        config=config,
-        from_pt=from_pt,
-    )
+def setup_model(model_args, checkpoint, config, training_args, task_type):
+    model_name_or_path = model_args.model_name_or_path if checkpoint is None else checkpoint
+    from_pt = model_args.from_pt if checkpoint is None else False
 
-    optimizer = tf.keras.optimizers.Adam(
-        learning_rate=training_args.learning_rate,
-        beta_1=training_args.adam_beta1,
-        beta_2=training_args.adam_beta2,
-        epsilon=training_args.adam_epsilon,
-        clipnorm=training_args.max_grad_norm,
-    )
-    loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-    metrics = ["accuracy"]
+    if task_type == TaskType.CLASSIFICATION:
+        model = classification_utils.setup_model(
+            model_name_or_path, config, training_args, from_pt)
+    elif task_type == TaskType.QA:
+        model = qa_utils.setup_model(
+            model_name_or_path, config, training_args, from_pt)
+    else:
+        raise ValueError(f"Unknown task_type: {task_type}")
 
-    model.compile(optimizer=optimizer, loss=loss_fn, metrics=metrics)
     return model
 
 
@@ -665,15 +520,22 @@ def main():
 
     dataset = load_dataset(data_args, training_args)
     if data_args.task_type == TaskType.CLASSIFICATION:
+        # num_label is neccessary to initialize model
         dataset_key = list(dataset.keys())[0]  # at least one data file exists
-        # column_names = dataset[dataset_key].column_names
-        label_list = dataset[dataset_key].unique("label")
-        data_args.label2id = {l: i for i, l in enumerate(label_list)}
+        data_args.label_list = dataset[dataset_key].unique("label")
+        data_args.label2id = {l: i for i, l in enumerate(data_args.label_list)}
+    if data_args.task_type == TaskType.QA:
+        # decide columns following huggingface example
+        dataset_key = list(dataset.keys())[0]  # at least one data file exists
+        clm_names = dataset[dataset_key].column_names
+        data_args.question_column = "question" if "question" in clm_names else clm_names[0]
+        data_args.context_column = "context" if "context" in clm_names else clm_names[1]
+        data_args.answer_column = "answers" if "answers" in clm_names else clm_names[2]
 
     tokenizer = setup_tokenizer(model_args)
 
     logger.info(f"preprocess data:")
-    dataset = preprocess_dataset(dataset, data_args, tokenizer)
+    processed_dataset = preprocess_dataset(dataset, data_args, tokenizer)
 
     if training_args.do_train:
         logger.info(f"finetune model:")
@@ -693,19 +555,19 @@ def main():
             if done_epochs > 0:
                 logger.info(f"continue fine-tuning from epoch {done_epochs+1}")
 
-            model_path = model_args.model_name_or_path if checkpoint is None else checkpoint
             config = setup_config(model_args, checkpoint, data_args)
-            from_pt = model_args.from_pt if checkpoint is None else False
 
             with training_args.strategy.scope():
-                tf_data = convert_datasets(dataset, data_args, training_args)
-                model = setup_model(model_path, config, training_args, from_pt)
+                tf_data = convert_datasets(
+                    processed_dataset, data_args, training_args)
+                model = setup_model(model_args, checkpoint,
+                                    config, training_args, data_args.task_type)
                 model = finetune_model(
                     model, tf_data, training_args, done_epochs)
 
     if training_args.do_predict:
         logger.info(f"predict with test data:")
-        tf_data = convert_datasets(dataset, data_args, training_args)
+        tf_data = convert_datasets(processed_dataset, data_args, training_args)
         eval_results = dict()
         for learning_rate, batch_size, n_epoch in it.product(
                 data_args.learning_rate_list, data_args.batch_size_list, range(int(training_args.num_train_epochs))):
@@ -720,16 +582,17 @@ def main():
                 continue
 
             config = AutoConfig.from_pretrained(
-                model_path, num_labels=len(label_list))
+                model_path, num_labels=len(data_args.label_list))
 
             with training_args.strategy.scope():
-                model = setup_model(model_path, config, training_args)
+                model = setup_model(model_args, model_path,
+                                    config, training_args, data_args.task_type)
                 _, predicted_class = predict_testdata(model, tf_data["test"])
                 eval_results[dir_name] = predicted_class
                 save_prediction(predicted_class, model_path /
                                 "test_results.txt", config.id2label)
 
-        labels = dataset["test"]["label"]
+        labels = processed_dataset["test"]["label"]
         for key, predicted_class in eval_results.items():
             acc = sum(predicted_class == labels) / len(labels)
             print(f"{key}, acc: {acc:.4f}")
