@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 from transformers import (
     TFAutoModelForSequenceClassification,
@@ -51,3 +52,23 @@ def setup_model(model_name_or_path, config, training_args, from_pt=False):
 
     model.compile(optimizer=optimizer, loss=loss_fn, metrics=metrics)
     return model
+
+
+def evaluate_model(model, processed_data, tf_data, data_args, output_dir=None):
+    predictions = model.predict(tf_data)["logits"]
+    predicted_class = np.argmax(predictions, axis=1)
+
+    labels = processed_data["label"]
+    acc = sum(predicted_class == labels) / len(labels)
+    metrics = {"accuracy": acc}
+
+    if output_dir is not None:
+        id2label = {i: l for l, i in data_args.label2id.items()}
+        output_file = output_dir / "test_results.txt"
+        with open(output_file, "w") as writer:
+            writer.write("index\tprediction\n")
+            for index, item in enumerate(predicted_class):
+                item = id2label[item]
+                writer.write(f"{index}\t{item}\n")
+
+    return metrics
