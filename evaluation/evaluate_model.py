@@ -2,27 +2,27 @@ import logging
 import sys
 import itertools as it
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import Optional, List
 
 import numpy as np
 import tensorflow as tf
+import textspan
 from datasets import load_dataset as hf_load_dataset
 from transformers import (
     AutoConfig,
     AutoTokenizer,
     HfArgumentParser,
+    PreTrainedTokenizerFast,
     TFAutoModelForQuestionAnswering,
     TFAutoModelForSequenceClassification,
     TFTrainingArguments,
     set_seed,
 )
 from transformers.file_utils import CONFIG_NAME, TF2_WEIGHTS_NAME
-from transformers.utils import check_min_version
 from sudachitra.tokenization_bert_sudachipy import BertSudachipyTokenizer
 
-
-check_min_version("4.13.0.dev0")
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -32,9 +32,15 @@ logging.basicConfig(
 )
 logger.setLevel(logging.INFO)
 
+
+class TaskType(Enum):
+    CLASSIFICATION = "classfication"
+    QA = "qa"
+
+
 dataset_info = {
-    "amazon": {"task": "classification"},
-    "rcqa": {"task": "qa"},
+    "amazon": {"task": TaskType.CLASSIFICATION},
+    "rcqa": {"task": TaskType.QA},
 }
 
 
@@ -58,6 +64,7 @@ class ModelArguments:
         default=False, metadata={"help": "Set True when load PyTorch save file"}
     )
 
+    # for sudachi tokenizer
     sudachi_vocab_file: Optional[str] = field(
         default=None, metadata={"help": "Path to the sudachi tokenizer vocab file. Required if use sudachi"}
     )
@@ -144,12 +151,35 @@ class DataTrainingArguments:
         },
     )
 
+    # for qa
+    doc_stride: int = field(
+        default=128,
+        metadata={
+            "help": "When splitting up a long document into chunks, how much stride to take between chunks."},
+    )
+    n_best_size: int = field(
+        default=20,
+        metadata={
+            "help": "The total number of n-best predictions to generate when looking for an answer."},
+    )
+    max_answer_length: int = field(
+        default=30,
+        metadata={
+            "help": "The maximum length of an answer that can be generated. This is needed because the start "
+            "and end predictions are not conditioned on one another."
+        },
+    )
+
     def __post_init__(self):
         # set tasktype
-        if self.dataset_name is None or self.dataset_name not in dataset_info:
-            assert self.task_type is not None, "task_type is necessary if dataset_name is not set."
-        else:
+        if self.dataset_name in dataset_info:
             self.task_type = dataset_info[self.dataset_name]["task"]
+        else:
+            if self.task_type is None:
+                logger.warning(
+                    f"task_type not found. Assume this is classification task.")
+                self.task_type = TaskType.CLASSIFICATION
+            self.task_type = TaskType(self.task_type.lower())
 
         # search dataset_dir for data files
         data_dir = Path(self.dataset_dir)
@@ -309,11 +339,13 @@ def preprocess_dataset(dataset, data_args, tokenizer):
                        f"model maximum length ({tokenizer.model_max_length}). Use latter.")
     max_length = min(tokenizer.model_max_length, data_args.max_seq_length)
 
-    if data_args.task_type == "classification":
+    if data_args.task_type == TaskType.CLASSIFICATION:
         dataset = prepare_classification(
             dataset, data_args, tokenizer, max_length)
+    elif data_args.task_type == TaskType.QA:
+        dataset = prepare_qa(dataset, data_args, tokenizer, max_length)
     else:
-        raise NotImplementedError(f"{data_args.task_type}")
+        raise ValueError(f"Unknown task type: {data_args.task_type}.")
 
     return dataset
 
@@ -343,6 +375,118 @@ def prepare_classification(dataset, data_args, tokenizer, max_length):
         return result
 
     dataset = dataset.map(subfunc, batched=True, remove_columns=data_columns)
+    return dataset
+
+
+def prepare_qa(dataset, data_args, tokenizer, max_length):
+    dataset_name = list(dataset.keys())[0]
+    column_names = dataset[dataset_name].column_names
+
+    # decide columns following huggingface example
+    question_column = "question" if "question" in column_names else column_names[0]
+    context_column = "context" if "context" in column_names else column_names[1]
+    answer_column = "answers" if "answers" in column_names else column_names[2]
+
+    is_fast_tokenizer = isinstance(tokenizer, PreTrainedTokenizerFast)
+
+    def subfunc(examples):
+        # strip question
+        examples[question_column] = [q.lstrip()
+                                     for q in examples[question_column]]
+
+        # tokenize
+        result = tokenizer(
+            examples[question_column],
+            examples[context_column],
+            max_length=max_length,
+            stride=data_args.doc_stride,
+            return_overflowing_tokens=is_fast_tokenizer,
+            return_offsets_mapping=is_fast_tokenizer,
+            padding="max_length" if data_args.pad_to_max_length else False,
+        )
+
+        # when using PreTrainedTokenizerFast, one example might have multiple samples if it has a long context.
+        # this is mapping from them to original example id.
+        sample_mapping = result.pop(
+            "overflow_to_sample_mapping", list(range(len(examples[question_column]))))
+
+        # mapping from each tokens to their span in the original text
+        offset_mapping = result.pop("offset_mapping", None)
+        if offset_mapping is None:
+            # construct manually, since offset_mapping is not available for PreTrainedTokenizer
+            # this may fail due to unk_token or normalization process of tokenizer
+            reset_token_ids = [tokenizer.sep_token_id,
+                               tokenizer.pad_token_id, tokenizer.cls_token_id]
+            offset_mapping = []
+            for question, context, input_ids, token_types in zip(
+                    examples[question_column], examples[context_column], result["input_ids"], result["token_type_ids"]):
+                tokens = tokenizer.convert_ids_to_tokens(input_ids)
+
+                split_idx = token_types.index(1)
+                ids_q = input_ids[:split_idx]
+                ids_c = input_ids[split_idx:]
+                spans_q = textspan.get_original_spans(
+                    tokens[:split_idx], question)
+                spans_c = textspan.get_original_spans(
+                    tokens[split_idx:], context)
+
+                offsets = []
+                for z in (zip(ids_q, spans_q), zip(ids_c, spans_c)):
+                    for i, (id, spans) in enumerate(z):
+                        if id in reset_token_ids:
+                            offsets.append((0, 0))
+                        elif len(spans) > 0:
+                            offsets.append(spans[0])
+                        else:
+                            # complement based on prev/next span if none found.
+                            # if prev/next is null, add empty span
+                            begin = 0 if i == 0 else offsets[-1][1]
+                            end = begin if (
+                                i+1 >= len(spans_q) or len(spans_q[i+1]) == 0) else spans_q[i+1][0]
+                            offsets.append((begin, end))
+                offset_mapping.append(offsets)
+
+        result["start_positions"] = []
+        result["end_positions"] = []
+        for i, offsets in enumerate(offset_mapping):
+            # use position of CLS token as answer for impossible qa
+            input_ids = result["input_ids"][i]
+            cls_index = input_ids.index(tokenizer.cls_token_id)
+
+            answers = examples[answer_column][sample_mapping[i]]
+            if len(answers["answer_start"]) == 0:
+                # no answer, i.e. impossible to answer
+                result["start_positions"].append(cls_index)
+                result["end_positions"].append(cls_index)
+                continue
+
+            # only consider first answer
+            start_char = answers["answer_start"][0]
+            end_char = start_char + len(answers["text"][0])
+
+            # is [0, .., 0, 1, .., 1 (, 0, ..,0)], where 1 for tokens from context, 0s at last exists if padded
+            token_types = result["token_type_ids"][i]
+            token_start_idx = token_types.index(1)
+            token_end_idx = len(token_types) - 1
+            while token_types[token_end_idx] != 1:
+                token_end_idx -= 1
+            token_end_idx -= 1  # skip sep_token at last
+
+            if not (offsets[token_start_idx][0] <= start_char and offsets[token_end_idx][1] >= end_char):
+                result["start_positions"].append(cls_index)
+                result["end_positions"].append(cls_index)
+                continue
+
+            while token_start_idx < len(offsets) and offsets[token_start_idx][0] <= start_char:
+                token_start_idx += 1
+            while offsets[token_end_idx][1] >= end_char:
+                token_end_idx -= 1
+            result["start_positions"].append(token_start_idx - 1)
+            result["end_positions"].append(token_end_idx + 1)
+
+        return result
+
+    dataset = dataset.map(subfunc, batched=True, remove_columns=column_names)
     return dataset
 
 
@@ -508,7 +652,7 @@ def main():
     output_root.mkdir(parents=True, exist_ok=True)
 
     dataset = load_dataset(data_args, training_args)
-    if data_args.task_type == "classification":
+    if data_args.task_type == TaskType.CLASSIFICATION:
         dataset_key = list(dataset.keys())[0]  # at least one data file exists
         # column_names = dataset[dataset_key].column_names
         label_list = dataset[dataset_key].unique("label")
