@@ -89,16 +89,16 @@ class DataTrainingArguments:
     Arguments for data to use fine-tune and eval.
     """
 
-    dataset_dir: str = field(
+    dataset_dir: Optional[str] = field(
         metadata={"help": "A root directory where dataset files locate."}
     )
     train_file: Optional[str] = field(
         default=None, metadata={"help": "A csv file containing the training data. Overwrites dataset_dir."})
-    test_file: Optional[str] = field(
-        default=None, metadata={"help": "A csv file containing the test data. Overwrites dataset_dir."})
     validation_file: Optional[str] = field(
         default=None, metadata={"help": "A csv file containing the validation data. Overwrites dataset_dir."}
     )
+    test_file: Optional[str] = field(
+        default=None, metadata={"help": "A csv file containing the test data. Overwrites dataset_dir."})
 
     dataset_name: Optional[str] = field(
         default=None, metadata={"help": "A identifier of dataset."}
@@ -182,16 +182,18 @@ class DataTrainingArguments:
             self.task_type = TaskType(self.task_type.lower())
 
         # search dataset_dir for data files
-        data_dir = Path(self.dataset_dir)
-        if self.train_file is None:
-            files = list(data_dir.glob("train*"))
-            self.train_file = sorted(files)[0] if len(files) > 0 else None
-        if self.validation_file is None:
-            files = list(data_dir.glob("dev*"))
-            self.validation_file = sorted(files)[0] if len(files) > 0 else None
-        if self.test_file is None:
-            files = list(data_dir.glob("test*"))
-            self.test_file = sorted(files)[0] if len(files) > 0 else None
+        if self.dataset_dir is not None:
+            data_dir = Path(self.dataset_dir)
+            if self.train_file is None:
+                files = list(data_dir.glob("train*"))
+                self.train_file = sorted(files)[0] if len(files) > 0 else None
+            if self.validation_file is None:
+                files = list(data_dir.glob("dev*"))
+                self.validation_file = sorted(
+                    files)[0] if len(files) > 0 else None
+            if self.test_file is None:
+                files = list(data_dir.glob("test*"))
+                self.test_file = sorted(files)[0] if len(files) > 0 else None
 
         # check extension of data files
         extensions = {
@@ -274,12 +276,22 @@ def load_dataset(data_args, training_args):
                   "validation": data_args.validation_file,
                   "test": data_args.test_file}
 
-    for key in ["train", "validation", "test"]:
-        if do_step[key] and data_files[key] is None:
-            raise ValueError(f"{key}_file is necessary for {key}")
+    if any(do_step.values()):
+        # if any of do_train/eval/predict is set, focus on them
+        for k, do in do_step.items():
+            if do:
+                assert data_files[k] is not None, f"data file for {k} is required."
+            else:
+                data_files[k] = None
+    else:
+        # otherwise, work with provided data
+        training_args.do_train = data_files["train"] is not None
+        training_args.do_eval = data_files["validation"] is not None
+        training_args.do_predict = data_files["test"] is not None
 
     data_files = {k: str(Path(v).resolve())
                   for k, v in data_files.items() if do_step[k]}
+
     # "csv" and "json" are valid
     dataset = hf_load_dataset(
         data_args.input_file_extension, data_files=data_files)
