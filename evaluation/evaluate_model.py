@@ -165,16 +165,13 @@ class DataTrainingArguments:
 
         # check extension of data files
         extensions = {
-            self.train_file.split(
-                ".")[-1].lower() if self.train_file is not None else None,
-            self.validation_file.split(
-                ".")[-1].lower() if self.validation_file is not None else None,
-            self.test_file.split(
-                ".")[-1].lower() if self.test_file is not None else None,
+            self.train_file.suffix.lower() if self.train_file is not None else None,
+            self.validation_file.suffix.lower() if self.validation_file is not None else None,
+            self.test_file.suffix.lower() if self.test_file is not None else None,
         }
         extensions.discard(None)
         assert len(extensions) == 1, "All input files should have same extension."
-        ext = extensions.pop()
+        ext = extensions.pop()[1:]
         assert ext in ["csv", "json"], "data file should be csv or json."
         self.input_file_extension = ext
 
@@ -243,9 +240,9 @@ def load_dataset(data_args, training_args):
     do_step = {"train": training_args.do_train,
                "validation": training_args.do_eval,
                "test": training_args.do_predict}
-    data_files = {"train": data_args.trai_file,
+    data_files = {"train": data_args.train_file,
                   "validation": data_args.validation_file,
-                  "test": data_args.test_files}
+                  "test": data_args.test_file}
 
     for key in ["train", "validation", "test"]:
         if do_step[key] and data_files[key] is None:
@@ -278,8 +275,8 @@ def setup_tokenizer(model_args):
     return tokenizer
 
 
-def setup_config(model_args, data_args):
-    config_path = model_args.config_name or model_args.model_name_or_path
+def setup_config(model_args, checkpoint, data_args):
+    config_path = checkpoint or model_args.config_name or model_args.model_name_or_path
 
     if data_args.task_type == "classfication":
         config = AutoConfig.from_pretrained(
@@ -511,13 +508,12 @@ def main():
     output_root.mkdir(parents=True, exist_ok=True)
 
     dataset = load_dataset(data_args, training_args)
-    if data_args.task_type == "classfication":
+    if data_args.task_type == "classification":
         dataset_key = list(dataset.keys())[0]  # at least one data file exists
         # column_names = dataset[dataset_key].column_names
         label_list = dataset[dataset_key].unique("label")
         data_args.label2id = {l: i for i, l in enumerate(label_list)}
 
-    config = setup_config(model_args, data_args)
     tokenizer = setup_tokenizer(model_args)
 
     logger.info(f"preprocess data:")
@@ -542,11 +538,12 @@ def main():
                 logger.info(f"continue fine-tuning from epoch {done_epochs+1}")
 
             model_path = model_args.model_name_or_path if checkpoint is None else checkpoint
+            config = setup_config(model_args, checkpoint, data_args)
+            from_pt = model_args.from_pt if checkpoint is None else False
 
             with training_args.strategy.scope():
                 tf_data = convert_datasets(dataset, data_args, training_args)
-                model = setup_model(model_path, config,
-                                    training_args, model_args.from_pt)
+                model = setup_model(model_path, config, training_args, from_pt)
                 model = finetune_model(
                     model, tf_data, training_args, done_epochs)
 
