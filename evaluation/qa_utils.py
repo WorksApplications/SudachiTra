@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 import textspan
 import numpy as np
 import tensorflow as tf
-from datasets import load_metric
+from datasets import load_metric, DatasetDict
 from transformers import (
     PreTrainedTokenizerFast,
     TFAutoModelForQuestionAnswering,
@@ -26,28 +26,29 @@ logger.setLevel(logging.INFO)
 
 
 def preprocess_dataset(dataset, data_args, tokenizer, max_length):
-    dataset_name = list(dataset.keys())[0]
-    column_names = dataset[dataset_name].column_names
     question_column = data_args.question_column
     context_column = data_args.context_column
     answer_column = data_args.answer_column
 
     is_fast_tokenizer = isinstance(tokenizer, PreTrainedTokenizerFast)
 
-    def subfunc(examples):
+    def subfunc_train(examples):
         # strip question
         examples[question_column] = [q.lstrip()
                                      for q in examples[question_column]]
 
         # tokenize
+        # if not is_fast, result.keys = ["input_ids", "token_type_ids", "attension_mask"]
+        # otherwise it also has ["offset_mapping", "overflow_sample_mapping"]
         result = tokenizer(
             examples[question_column],
             examples[context_column],
             max_length=max_length,
+            truncation="only_second",
             stride=data_args.doc_stride,
+            padding="max_length" if data_args.pad_to_max_length else False,
             return_overflowing_tokens=is_fast_tokenizer,
             return_offsets_mapping=is_fast_tokenizer,
-            padding="max_length" if data_args.pad_to_max_length else False,
         )
 
         # when using PreTrainedTokenizerFast, one example might have multiple samples if it has a long context.
@@ -59,37 +60,8 @@ def preprocess_dataset(dataset, data_args, tokenizer, max_length):
         offset_mapping = result.pop("offset_mapping", None)
         if offset_mapping is None:
             # construct manually, since offset_mapping is not available for PreTrainedTokenizer
-            # this may fail due to unk_token or normalization process of tokenizer
-            reset_token_ids = [tokenizer.sep_token_id,
-                               tokenizer.pad_token_id, tokenizer.cls_token_id]
-            offset_mapping = []
-            for question, context, input_ids, token_types in zip(
-                    examples[question_column], examples[context_column], result["input_ids"], result["token_type_ids"]):
-                tokens = tokenizer.convert_ids_to_tokens(input_ids)
-
-                split_idx = token_types.index(1)
-                ids_q = input_ids[:split_idx]
-                ids_c = input_ids[split_idx:]
-                spans_q = textspan.get_original_spans(
-                    tokens[:split_idx], question)
-                spans_c = textspan.get_original_spans(
-                    tokens[split_idx:], context)
-
-                offsets = []
-                for z in (zip(ids_q, spans_q), zip(ids_c, spans_c)):
-                    for i, (id, spans) in enumerate(z):
-                        if id in reset_token_ids:
-                            offsets.append((0, 0))
-                        elif len(spans) > 0:
-                            offsets.append(spans[0])
-                        else:
-                            # complement based on prev/next span if none found.
-                            # if prev/next is null, add empty span
-                            begin = 0 if i == 0 else offsets[-1][1]
-                            end = begin if (
-                                i+1 >= len(spans_q) or len(spans_q[i+1]) == 0) else spans_q[i+1][0]
-                            offsets.append((begin, end))
-                offset_mapping.append(offsets)
+            offset_mapping = _construct_offset_mapping(
+                examples[question_column], examples[context_column], result, tokenizer)
 
         result["start_positions"] = []
         result["end_positions"] = []
@@ -131,12 +103,100 @@ def preprocess_dataset(dataset, data_args, tokenizer, max_length):
 
         return result
 
-    dataset = dataset.map(subfunc, batched=True, remove_columns=column_names)
-    return dataset
+    def subfunc_test(examples):
+        # strip question
+        examples[question_column] = [q.lstrip()
+                                     for q in examples[question_column]]
+
+        # tokenize
+        # if not is_fast, result.keys = ["input_ids", "token_type_ids", "attension_mask"]
+        # otherwise it also has ["offset_mapping", "overflow_sample_mapping"]
+        result = tokenizer(
+            examples[question_column],
+            examples[context_column],
+            max_length=max_length,
+            truncation="only_second",
+            stride=data_args.doc_stride,
+            padding="max_length" if data_args.pad_to_max_length else False,
+            return_overflowing_tokens=is_fast_tokenizer,
+            return_offsets_mapping=is_fast_tokenizer,
+        )
+
+        # when using PreTrainedTokenizerFast, one example might have multiple samples if it has a long context.
+        # this is mapping from them to original example id.
+        sample_mapping = result.pop(
+            "overflow_to_sample_mapping", list(range(len(examples[question_column]))))
+
+        # mapping from each tokens to their span in the original text
+        if "offset_mapping" not in result:
+            # construct manually, since offset_mapping is not available for PreTrainedTokenizer
+            result["offset_mapping"] = _construct_offset_mapping(
+                examples[question_column], examples[context_column], result, tokenizer)
+
+        result["example_id"] = []
+        for i, token_types in enumerate(result["token_type_ids"]):
+            sample_idx = sample_mapping[i]
+            result["example_id"].append(examples["id"][sample_idx])
+
+            context_end = len(token_types) - 1
+            while token_types[context_end] == 0:
+                context_end -= 1
+            token_types[context_end] = 0  # skip last sep_token
+
+            # set None for spans of non-context ids
+            result["offset_maping"][i] = [
+                (o if token_types[k] == 1 else None)
+                for k, o in enumerate(result["offset_mapping"][i])
+            ]
+
+        return result
+
+    dataset_name = list(dataset.keys())[0]
+    column_names = dataset[dataset_name].column_names
+
+    processed = {}
+    for key, subfunc in (("train", subfunc_train), ("validation", subfunc_test), ("test", subfunc_test)):
+        if key in dataset:
+            processed[key] = dataset[key].map(
+                subfunc, batched=True, remove_columns=column_names)
+    processed = DatasetDict(processed)
+
+    return processed
 
 
-def convert_to_tf():
-    pass
+def _construct_offset_mapping(questions, contexts, tokenized, tokenizer):
+    # this may fail due to unk_token or normalization process of tokenizer
+    reset_token_ids = {
+        tokenizer.sep_token_id, tokenizer.pad_token_id, tokenizer.cls_token_id}
+    offset_mapping = []
+    for question, context, input_ids, token_types in zip(
+            questions, contexts, tokenized["input_ids"], tokenized["token_type_ids"]):
+
+        tokens = tokenizer.convert_ids_to_tokens(input_ids)
+        split_idx = token_types.index(1)
+        ids_q = input_ids[:split_idx]
+        ids_c = input_ids[split_idx:]
+        spans_q = textspan.get_original_spans(
+            tokens[:split_idx], question)
+        spans_c = textspan.get_original_spans(
+            tokens[split_idx:], context)
+
+        offsets = []
+        for z in (zip(ids_q, spans_q), zip(ids_c, spans_c)):
+            for i, (id, spans) in enumerate(z):
+                if id in reset_token_ids:
+                    offsets.append((0, 0))
+                elif len(spans) > 0:
+                    offsets.append(spans[0])
+                else:
+                    # complement based on prev/next span if none found.
+                    # if prev/next is null, add empty span
+                    begin = 0 if i == 0 else offsets[-1][1]
+                    end = begin if (
+                        i+1 >= len(spans_q) or len(spans_q[i+1]) == 0) else spans_q[i+1][0]
+                    offsets.append((begin, end))
+        offset_mapping.append(offsets)
+    return offset_mapping
 
 
 def setup_model(model_name_or_path, config, training_args, from_pt=False):
