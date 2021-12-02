@@ -1,4 +1,6 @@
+import json
 import logging
+import os
 import sys
 from collections import defaultdict as ddict, OrderedDict as odict
 from typing import Optional, Tuple
@@ -222,16 +224,41 @@ def setup_model(model_name_or_path, config, training_args, from_pt=False):
     return model
 
 
-def post_processing_function(data_args, examples, features, predictions, stage="eval"):
+def evaluate_model(model, dataset, processed_dataset, data_args, output_dir=None, stage="eval"):
+    eval_inputs = {
+        "input_ids": tf.ragged.constant(dataset["input_ids"]).to_tensor(),
+        "attention_mask": tf.ragged.constant(dataset["attention_mask"]).to_tensor(),
+    }
+    eval_predictions = model.predict(eval_inputs)
+    post_processed_eval = _post_processing_function(
+        data_args,
+        dataset,
+        processed_dataset,
+        (eval_predictions.start_logits, eval_predictions.end_logits),
+        output_dir=output_dir,
+        stage=stage,
+    )
+
+    metric = load_metric("squad_v2")
+
+    def compute_metrics(p: EvalPrediction):
+        return metric.compute(predictions=p.predictions, references=p.label_ids)
+
+    metrics = compute_metrics(post_processed_eval)
+    return metrics
+
+
+def _post_processing_function(data_args, examples, features, predictions, output_dir=None, stage="eval"):
     # Post-processing: we match the start logits and end logits to answers in the original context.
-    predictions = postprocess_qa_predictions(
+    predictions = _postprocess_qa_predictions(
         examples=examples,
         features=features,
         predictions=predictions,
-        version_2_with_negative=data_args.version_2_with_negative,
+        version_2_with_negative=True,
         n_best_size=data_args.n_best_size,
         max_answer_length=data_args.max_answer_length,
         null_score_diff_threshold=data_args.null_score_diff_threshold,
+        output_dir=output_dir,
         prefix=stage,
     )
     # Format the result to the format the metric expects.
@@ -244,29 +271,7 @@ def post_processing_function(data_args, examples, features, predictions, stage="
     return EvalPrediction(predictions=formatted_predictions, label_ids=references)
 
 
-def evaluate_model(model, dataset, processed_dataset, data_args):
-    eval_inputs = {
-        "input_ids": tf.ragged.constant(dataset["input_ids"]).to_tensor(),
-        "attention_mask": tf.ragged.constant(dataset["attention_mask"]).to_tensor(),
-    }
-    eval_predictions = model.predict(eval_inputs)
-    post_processed_eval = post_processing_function(
-        data_args,
-        dataset,
-        processed_dataset,
-        (eval_predictions.start_logits, eval_predictions.end_logits),
-    )
-
-    metric = load_metric("squad_v2")
-
-    def compute_metrics(p: EvalPrediction):
-        return metric.compute(predictions=p.predictions, references=p.label_ids)
-
-    metrics = compute_metrics(post_processed_eval)
-    return metrics
-
-
-def postprocess_qa_predictions(
+def _postprocess_qa_predictions(
     examples,
     features,
     predictions: Tuple[np.ndarray, np.ndarray],
@@ -274,8 +279,8 @@ def postprocess_qa_predictions(
     n_best_size: int = 20,
     max_answer_length: int = 30,
     null_score_diff_threshold: float = 0.0,
-    # output_dir: Optional[str] = None,
-    # prefix: Optional[str] = None,
+    output_dir: Optional[str] = None,
+    prefix: Optional[str] = None,
 ):
     """taken from https://github.com/huggingface/transformers/blob/master/examples/tensorflow/question-answering/utils_qa.py"""
 
@@ -430,31 +435,31 @@ def postprocess_qa_predictions(
             for pred in predictions
         ]
 
-    # # If we have an output_dir, let's save all those dicts.
-    # if output_dir is not None:
-    #     if not os.path.isdir(output_dir):
-    #         raise EnvironmentError(f"{output_dir} is not a directory.")
+    # If we have an output_dir, let's save all those dicts.
+    if output_dir is not None:
+        if not os.path.isdir(output_dir):
+            raise EnvironmentError(f"{output_dir} is not a directory.")
 
-    #     prediction_file = os.path.join(
-    #         output_dir, "predictions.json" if prefix is None else f"{prefix}_predictions.json"
-    #     )
-    #     nbest_file = os.path.join(
-    #         output_dir, "nbest_predictions.json" if prefix is None else f"{prefix}_nbest_predictions.json"
-    #     )
-    #     if version_2_with_negative:
-    #         null_odds_file = os.path.join(
-    #             output_dir, "null_odds.json" if prefix is None else f"{prefix}_null_odds.json"
-    #         )
+        prediction_file = os.path.join(
+            output_dir, "predictions.json" if prefix is None else f"{prefix}_predictions.json"
+        )
+        nbest_file = os.path.join(
+            output_dir, "nbest_predictions.json" if prefix is None else f"{prefix}_nbest_predictions.json"
+        )
+        if version_2_with_negative:
+            null_odds_file = os.path.join(
+                output_dir, "null_odds.json" if prefix is None else f"{prefix}_null_odds.json"
+            )
 
-    #     logger.info(f"Saving predictions to {prediction_file}.")
-    #     with open(prediction_file, "w") as writer:
-    #         writer.write(json.dumps(all_predictions, indent=4) + "\n")
-    #     logger.info(f"Saving nbest_preds to {nbest_file}.")
-    #     with open(nbest_file, "w") as writer:
-    #         writer.write(json.dumps(all_nbest_json, indent=4) + "\n")
-    #     if version_2_with_negative:
-    #         logger.info(f"Saving null_odds to {null_odds_file}.")
-    #         with open(null_odds_file, "w") as writer:
-    #             writer.write(json.dumps(scores_diff_json, indent=4) + "\n")
+        logger.info(f"Saving predictions to {prediction_file}.")
+        with open(prediction_file, "w") as writer:
+            writer.write(json.dumps(all_predictions, indent=4) + "\n")
+        logger.info(f"Saving nbest_preds to {nbest_file}.")
+        with open(nbest_file, "w") as writer:
+            writer.write(json.dumps(all_nbest_json, indent=4) + "\n")
+        if version_2_with_negative:
+            logger.info(f"Saving null_odds to {null_odds_file}.")
+            with open(null_odds_file, "w") as writer:
+                writer.write(json.dumps(scores_diff_json, indent=4) + "\n")
 
     return all_predictions
