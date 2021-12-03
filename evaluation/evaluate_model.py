@@ -151,6 +151,14 @@ class DataTrainingArguments:
     )
 
     # for qa
+    null_score_diff_threshold: float = field(
+        default=0.0,
+        metadata={
+            "help": "The threshold used to select the null answer: if the best answer has a score that is less than "
+            "the score of the null answer minus this threshold, the null answer is selected for this example. "
+            "Only useful when `version_2_with_negative=True`."
+        },
+    )
     doc_stride: int = field(
         default=128,
         metadata={
@@ -480,19 +488,18 @@ def finetune_model(model, tf_data, training_args, done_epochs):
     return model
 
 
-def predict_testdata(model, tf_data):
-    predictions = model.predict(tf_data)["logits"]
-    predicted_class = np.argmax(predictions, axis=1)
-    return predictions, predicted_class
+def evaluate_model(model, dataset, processed_dataset, data_args, training_args, output_dir):
+    if data_args.task_type == TaskType.CLASSIFICATION:
+        tf_data = classification_utils.convert_dataset(
+            processed_dataset, data_args, training_args, stage="test")
+        metrics = classification_utils.evaluate_model(
+            model, processed_dataset, tf_data, data_args, output_dir)
 
+    elif data_args.task_type == TaskType.QA:
+        metrics = qa_utils.evaluate_model(
+            model, dataset, processed_dataset, data_args, output_dir)
 
-def save_prediction(predicted_class, output_file, id2label=lambda x: x):
-    with open(output_file, "w") as writer:
-        writer.write("index\tprediction\n")
-        for index, item in enumerate(predicted_class):
-            item = id2label[item]
-            writer.write(f"{index}\t{item}\n")
-    return
+    return metrics
 
 
 def main():
@@ -567,7 +574,6 @@ def main():
 
     if training_args.do_predict:
         logger.info(f"predict with test data:")
-        tf_data = convert_datasets(processed_dataset, data_args, training_args)
         eval_results = dict()
         for learning_rate, batch_size, n_epoch in it.product(
                 data_args.learning_rate_list, data_args.batch_size_list, range(int(training_args.num_train_epochs))):
@@ -587,15 +593,13 @@ def main():
             with training_args.strategy.scope():
                 model = setup_model(model_args, model_path,
                                     config, training_args, data_args.task_type)
-                _, predicted_class = predict_testdata(model, tf_data["test"])
-                eval_results[dir_name] = predicted_class
-                save_prediction(predicted_class, model_path /
-                                "test_results.txt", config.id2label)
+                metrics = evaluate_model(
+                    model, dataset, processed_dataset, data_args, training_args, output_dir=model_path)
+                eval_results[dir_name] = metrics
 
-        labels = processed_dataset["test"]["label"]
-        for key, predicted_class in eval_results.items():
-            acc = sum(predicted_class == labels) / len(labels)
-            print(f"{key}, acc: {acc:.4f}")
+        for hp, mts in eval_results:
+            for key, v in mts.items():
+                logger.info(f"{hp}, {key}: {v}")
 
     return
 
