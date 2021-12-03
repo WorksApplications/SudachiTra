@@ -201,6 +201,54 @@ def _construct_offset_mapping(questions, contexts, tokenized, tokenizer):
     return offset_mapping
 
 
+def convert_dataset_for_tensorflow(
+    dataset, batch_size, dataset_mode="variable_batch", shuffle=True, drop_remainder=True
+):
+    """Converts a Hugging Face dataset to a Tensorflow Dataset. The dataset_mode controls whether we pad all batches
+    to the maximum sequence length, or whether we only pad to the maximum length within that batch. The former
+    is most useful when training on TPU, as a new graph compilation is required for each sequence length.
+    """
+
+    def densify_ragged_batch(features, label=None):
+        features = {
+            feature: ragged_tensor.to_tensor(
+                shape=batch_shape[feature]) if feature in tensor_keys else ragged_tensor
+            for feature, ragged_tensor in features.items()
+        }
+        if label is None:
+            return features
+        else:
+            return features, label
+
+    tensor_keys = ["attention_mask", "input_ids"]
+    label_keys = ["start_positions", "end_positions"]
+    if dataset_mode == "variable_batch":
+        batch_shape = {key: None for key in tensor_keys}
+        data = {key: tf.ragged.constant(dataset[key]) for key in tensor_keys}
+    elif dataset_mode == "constant_batch":
+        data = {key: tf.ragged.constant(dataset[key]) for key in tensor_keys}
+        batch_shape = {
+            key: tf.concat(
+                ([batch_size], ragged_tensor.bounding_shape()[1:]), axis=0)
+            for key, ragged_tensor in data.items()
+        }
+    else:
+        raise ValueError("Unknown dataset mode!")
+
+    if all([key in dataset.features for key in label_keys]):
+        for key in label_keys:
+            data[key] = tf.convert_to_tensor(dataset[key])
+        dummy_labels = tf.zeros_like(dataset[key])
+        tf_dataset = tf.data.Dataset.from_tensor_slices((data, dummy_labels))
+    else:
+        tf_dataset = tf.data.Dataset.from_tensor_slices(data)
+    if shuffle:
+        tf_dataset = tf_dataset.shuffle(buffer_size=len(dataset))
+    tf_dataset = tf_dataset.batch(
+        batch_size=batch_size, drop_remainder=drop_remainder).map(densify_ragged_batch)
+    return tf_dataset
+
+
 def setup_model(model_name_or_path, config, training_args, from_pt=False):
     model = TFAutoModelForQuestionAnswering.from_pretrained(
         model_name_or_path,

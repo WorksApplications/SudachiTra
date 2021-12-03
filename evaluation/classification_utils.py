@@ -91,33 +91,6 @@ def convert_dataset_for_tensorflow(
     return tf_dataset
 
 
-def convert_dataset(dataset, data_args, training_args, stage):
-    if stage == "train":
-        shuffle = True,
-        batch_size = training_args.per_device_train_batch_size
-        drop_remainder = True
-    else:
-        shuffle = False
-        batch_size = training_args.per_device_eval_batch_size
-        drop_remainder = False
-
-    if isinstance(training_args.strategy, tf.distribute.TPUStrategy) or data_args.pad_to_max_length:
-        logger.info(
-            "Padding all batches to max length because argument was set or we're on TPU.")
-        dataset_mode = "constant_batch"
-    else:
-        dataset_mode = "variable_batch"
-
-    tf_data = convert_dataset_for_tensorflow(
-        dataset,
-        batch_size=batch_size,
-        dataset_mode=dataset_mode,
-        shuffle=shuffle,
-        drop_remainder=drop_remainder,
-    )
-    return tf_data
-
-
 def setup_model(model_name_or_path, config, training_args, from_pt=False):
     model = TFAutoModelForSequenceClassification.from_pretrained(
         model_name_or_path,
@@ -139,11 +112,11 @@ def setup_model(model_name_or_path, config, training_args, from_pt=False):
     return model
 
 
-def evaluate_model(model, processed_data, tf_data, data_args, output_dir=None):
-    predictions = model.predict(tf_data)["logits"]
+def evaluate_model(model, processed_dataset, tf_dataset, data_args, output_dir=None):
+    predictions = model.predict(tf_dataset)["logits"]
     predicted_class = np.argmax(predictions, axis=1)
 
-    labels = processed_data["label"]
+    labels = processed_dataset["label"]
     acc = sum(predicted_class == labels) / len(labels)
     metrics = {"accuracy": acc}
 

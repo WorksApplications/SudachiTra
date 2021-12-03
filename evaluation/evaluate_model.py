@@ -370,58 +370,20 @@ def preprocess_dataset(dataset, data_args, tokenizer):
     return dataset
 
 
-def convert_dataset_for_tensorflow(
-    dataset, batch_size, dataset_mode="variable_batch", shuffle=True, drop_remainder=False
-):
-    def densify_ragged_batch(features, label=None):
-        features = {
-            feature: ragged_tensor.to_tensor(shape=batch_shape[feature]) for feature, ragged_tensor in features.items()
-        }
-        if label is None:
-            return features
-        else:
-            return features, label
+def convert_to_tf_datasets(datasets, data_args, training_args):
+    if data_args.task_type == TaskType.CLASSIFICATION:
+        skip_keys = ()
+        convert_func = classification_utils.convert_dataset_for_tensorflow
+    elif data_args.task_type == TaskType.QA:
+        skip_keys = ("validation", "test")
+        convert_func = qa_utils.convert_dataset_for_tensorflow
 
-    # trim input length for each batch
-    feature_keys = list(set(dataset.features.keys()) - {"label"})
-    if dataset_mode == "variable_batch":
-        batch_shape = {key: None for key in feature_keys}
-        data = {key: tf.ragged.constant(dataset[key]) for key in feature_keys}
-    elif dataset_mode == "constant_batch":
-        data = {key: tf.ragged.constant(dataset[key]) for key in feature_keys}
-        batch_shape = {
-            key: tf.concat(
-                ([batch_size], ragged_tensor.bounding_shape()[1:]), axis=0)
-            for key, ragged_tensor in data.items()
-        }
-    else:
-        raise ValueError(f"Unknown dataset_mode: {dataset_mode}")
-
-    if "label" in dataset.features:
-        labels = tf.convert_to_tensor(np.array(dataset["label"]))
-        tf_dataset = tf.data.Dataset.from_tensor_slices((data, labels))
-    else:
-        tf_dataset = tf.data.Dataset.from_tensor_slices(data)
-
-    if shuffle:
-        tf_dataset = tf_dataset.shuffle(buffer_size=len(dataset))
-
-    # ref: https://github.com/tensorflow/tensorflow/issues/42146
-    options = tf.data.Options()
-    options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
-    tf_dataset = tf_dataset.with_options(options)
-
-    tf_dataset = tf_dataset.batch(
-        batch_size=batch_size, drop_remainder=drop_remainder).map(densify_ragged_batch)
-    return tf_dataset
-
-
-def convert_datasets(dataset, data_args, training_args):
-    tf_data = dict()
+    tf_datasets = {}
     for key in ("train", "validation", "test"):
-        if key not in dataset:
-            tf_data[key] = None
+        if key not in datasets or key in skip_keys:
+            tf_datasets[key] = None
             continue
+
         if key == "train":
             shuffle = True,
             batch_size = training_args.per_device_train_batch_size
@@ -438,14 +400,15 @@ def convert_datasets(dataset, data_args, training_args):
         else:
             dataset_mode = "variable_batch"
 
-        tf_data[key] = convert_dataset_for_tensorflow(
-            dataset[key],
+        tf_datasets[key] = convert_func(
+            datasets[key],
             batch_size=batch_size,
             dataset_mode=dataset_mode,
             shuffle=shuffle,
             drop_remainder=drop_remainder,
         )
-    return tf_data
+
+    return tf_datasets
 
 
 def setup_model(model_args, checkpoint, config, training_args, task_type):
@@ -476,24 +439,26 @@ class SaveModelCallback(tf.keras.callbacks.Callback):
         self.model.save_pretrained(self.output_root / dirname)
 
 
-def finetune_model(model, tf_data, training_args, done_epochs):
+def finetune_model(model, tf_datasets, data_args, training_args, done_epochs):
+    if data_args.task_type not in (TaskType.CLASSIFICATION, TaskType.QA):
+        raise ValueError(f"Unknown task_type: {data_args.task_type}")
+
     rest_epochs = int(training_args.num_train_epochs) - done_epochs
     callbacks = [SaveModelCallback(training_args, done_epochs)]
+
     model.fit(
-        tf_data["train"],
-        validation_data=tf_data["validation"],
+        tf_datasets["train"],
+        validation_data=tf_datasets["validation"],
         epochs=rest_epochs,
         callbacks=callbacks,
     )
     return model
 
 
-def evaluate_model(model, dataset, processed_dataset, data_args, training_args, output_dir):
+def evaluate_model(model, dataset, processed_dataset, tf_dataset, data_args, output_dir):
     if data_args.task_type == TaskType.CLASSIFICATION:
-        tf_data = classification_utils.convert_dataset(
-            processed_dataset, data_args, training_args, stage="test")
         metrics = classification_utils.evaluate_model(
-            model, processed_dataset, tf_data, data_args, output_dir)
+            model, processed_dataset, tf_dataset, data_args, output_dir)
 
     elif data_args.task_type == TaskType.QA:
         metrics = qa_utils.evaluate_model(
@@ -525,16 +490,16 @@ def main():
     output_root = Path(training_args.output_dir)
     output_root.mkdir(parents=True, exist_ok=True)
 
-    dataset = load_dataset(data_args, training_args)
+    datasets = load_dataset(data_args, training_args)
     if data_args.task_type == TaskType.CLASSIFICATION:
         # num_label is neccessary to initialize model
-        dataset_key = list(dataset.keys())[0]  # at least one data file exists
-        data_args.label_list = dataset[dataset_key].unique("label")
+        dataset_key = list(datasets.keys())[0]  # at least one data file exists
+        data_args.label_list = datasets[dataset_key].unique("label")
         data_args.label2id = {l: i for i, l in enumerate(data_args.label_list)}
     if data_args.task_type == TaskType.QA:
         # decide columns following huggingface example
-        dataset_key = list(dataset.keys())[0]  # at least one data file exists
-        clm_names = dataset[dataset_key].column_names
+        dataset_key = list(datasets.keys())[0]  # at least one data file exists
+        clm_names = datasets[dataset_key].column_names
         data_args.question_column = "question" if "question" in clm_names else clm_names[0]
         data_args.context_column = "context" if "context" in clm_names else clm_names[1]
         data_args.answer_column = "answers" if "answers" in clm_names else clm_names[2]
@@ -542,64 +507,65 @@ def main():
     tokenizer = setup_tokenizer(model_args)
 
     logger.info(f"preprocess data:")
-    processed_dataset = preprocess_dataset(dataset, data_args, tokenizer)
+    processed_datasets = preprocess_dataset(datasets, data_args, tokenizer)
 
-    if training_args.do_train:
-        logger.info(f"finetune model:")
-        for learning_rate, batch_size in it.product(data_args.learning_rate_list, data_args.batch_size_list):
-            training_args.learning_rate = learning_rate
-            training_args.per_device_train_batch_size = batch_size
+    with training_args.strategy.scope():
+        tf_datasets = convert_to_tf_datasets(
+            processed_datasets, data_args, training_args)
 
-            logger.info(
-                f"learning_rate: {learning_rate}, batch_size: {batch_size}")
+        if training_args.do_train:
+            logger.info(f"finetune model:")
+            for learning_rate, batch_size in it.product(data_args.learning_rate_list, data_args.batch_size_list):
+                training_args.learning_rate = learning_rate
+                training_args.per_device_train_batch_size = batch_size
 
-            checkpoint, done_epochs = detect_checkpoint(training_args)
-            rest_epochs = int(training_args.num_train_epochs) - done_epochs
-            if rest_epochs <= 0:
                 logger.info(
-                    f"saved model already trained {done_epochs} epochs. skip fine-tuning.")
-                continue
-            if done_epochs > 0:
-                logger.info(f"continue fine-tuning from epoch {done_epochs+1}")
+                    f"learning_rate: {learning_rate}, batch_size: {batch_size}")
 
-            config = setup_config(model_args, checkpoint, data_args)
+                checkpoint, done_epochs = detect_checkpoint(training_args)
+                rest_epochs = int(training_args.num_train_epochs) - done_epochs
+                if rest_epochs <= 0:
+                    logger.info(
+                        f"saved model already trained {done_epochs} epochs. skip fine-tuning.")
+                    continue
+                if done_epochs > 0:
+                    logger.info(
+                        f"continue fine-tuning from epoch {done_epochs+1}")
 
-            with training_args.strategy.scope():
-                tf_data = convert_datasets(
-                    processed_dataset, data_args, training_args)
+                config = setup_config(model_args, checkpoint, data_args)
                 model = setup_model(model_args, checkpoint,
                                     config, training_args, data_args.task_type)
                 model = finetune_model(
-                    model, tf_data, training_args, done_epochs)
+                    model, tf_datasets, data_args, training_args, done_epochs)
 
-    if training_args.do_predict:
-        logger.info(f"predict with test data:")
-        eval_results = dict()
-        for learning_rate, batch_size, n_epoch in it.product(
-                data_args.learning_rate_list, data_args.batch_size_list, range(int(training_args.num_train_epochs))):
-            training_args.learning_rate = learning_rate
-            training_args.per_device_train_batch_size = batch_size
+        if training_args.do_predict:
+            logger.info(f"predict with test data:")
+            eval_results = dict()
+            for learning_rate, batch_size, n_epoch in it.product(
+                    data_args.learning_rate_list, data_args.batch_size_list, range(int(training_args.num_train_epochs))):
+                training_args.learning_rate = learning_rate
+                training_args.per_device_train_batch_size = batch_size
 
-            dir_name = generate_output_dir_name(training_args, n_epoch+1)
-            model_path = output_root / dir_name
-            if not model_path.exists():
-                logger.info(f"model {dir_name} does not found. "
-                            f"run with --do_train option to train model")
-                continue
+                dir_name = generate_output_dir_name(training_args, n_epoch+1)
+                model_path = output_root / dir_name
+                if not model_path.exists():
+                    logger.info(f"model {dir_name} does not found. "
+                                f"run with --do_train option to train model")
+                    continue
 
-            config = AutoConfig.from_pretrained(
-                model_path, num_labels=len(data_args.label_list))
+                config = AutoConfig.from_pretrained(
+                    model_path, num_labels=len(data_args.label_list))
 
-            with training_args.strategy.scope():
                 model = setup_model(model_args, model_path,
                                     config, training_args, data_args.task_type)
                 metrics = evaluate_model(
-                    model, dataset, processed_dataset, data_args, training_args, output_dir=model_path)
+                    model, datasets["teset"], processed_datasets["teset"],
+                    tf_datasets["teset"], data_args, output_dir=model_path)
                 eval_results[dir_name] = metrics
 
-        for hp, mts in eval_results:
-            for key, v in mts.items():
-                logger.info(f"{hp}, {key}: {v}")
+            for hp, mts in eval_results:
+                for key, v in mts.items():
+                    logger.info(f"{hp}, {key}: {v}")
 
     return
 
