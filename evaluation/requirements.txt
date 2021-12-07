@@ -1,0 +1,16 @@
+# tensorflow
+tensorflow
+# huggingface
+transformers
+tokenizers
+datasets
+# sudachi
+sudachitra
+# util
+pytextspan
+
+# tohoku-bert
+fugashi
+unidic_lite
+ipadic
+
