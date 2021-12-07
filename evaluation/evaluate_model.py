@@ -502,13 +502,19 @@ def main():
         dataset_key = list(datasets.keys())[0]  # at least one data file exists
         data_args.label_list = datasets[dataset_key].unique("label")
         data_args.label2id = {l: i for i, l in enumerate(data_args.label_list)}
-    if data_args.task_type == TaskType.QA:
+        logger.info(
+            f"work on a classification task with {len(data_args.label_list)} labels.")
+    elif data_args.task_type == TaskType.QA:
         # decide columns following huggingface example
         dataset_key = list(datasets.keys())[0]  # at least one data file exists
         clm_names = datasets[dataset_key].column_names
         data_args.question_column = "question" if "question" in clm_names else clm_names[0]
         data_args.context_column = "context" if "context" in clm_names else clm_names[1]
         data_args.answer_column = "answers" if "answers" in clm_names else clm_names[2]
+        logger.info(f"work on a QA task.")
+    else:
+        logger.error(f"Unknown task type: {data_args.task_type}.")
+        return
 
     tokenizer = setup_tokenizer(model_args)
 
