@@ -341,8 +341,9 @@ def setup_config(model_args, checkpoint, data_args):
             num_labels=len(data_args.label2id),
         )
         # add label <-> id mapping
-        config.label2id = data_args.label2id
-        config.id2label = {i: l for l, i in data_args.label2id.items()}
+        if config.label2id is None:
+            config.label2id = data_args.label2id
+            config.id2label = {i: l for l, i in data_args.label2id.items()}
     else:
         config = AutoConfig.from_pretrained(config_path,)
 
@@ -463,10 +464,11 @@ def finetune_model(model, tf_datasets, data_args, training_args, done_epochs):
     return model
 
 
-def evaluate_model(model, dataset, processed_dataset, tf_dataset, data_args, output_dir):
+def evaluate_model(model, dataset, processed_dataset, tf_dataset, data_args, config, output_dir):
     if data_args.task_type == TaskType.CLASSIFICATION:
+        label2id = config.label2id or data_args.label2id
         metrics = classification_utils.evaluate_model(
-            model, processed_dataset, tf_dataset, data_args, output_dir)
+            model, processed_dataset, tf_dataset, label2id, output_dir)
 
     elif data_args.task_type == TaskType.QA:
         metrics = qa_utils.evaluate_model(
@@ -577,7 +579,7 @@ def main():
                                     config, training_args, data_args.task_type)
                 metrics = evaluate_model(
                     model, datasets["test"], processed_datasets["test"],
-                    tf_datasets["test"], data_args, output_dir=model_path)
+                    tf_datasets["test"], data_args, config, output_dir=model_path)
                 eval_results[dir_name] = metrics
 
             for hp, mts in eval_results.items():

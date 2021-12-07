@@ -117,7 +117,7 @@ def setup_model(model_name_or_path, config, training_args, from_pt=False):
     return model
 
 
-def evaluate_model(model, processed_dataset, tf_dataset, data_args, output_dir=None):
+def evaluate_model(model, processed_dataset, tf_dataset, label2id, output_dir=None):
     predictions = model.predict(tf_dataset)["logits"]
     predicted_class = np.argmax(predictions, axis=1)
 
@@ -126,7 +126,7 @@ def evaluate_model(model, processed_dataset, tf_dataset, data_args, output_dir=N
     metrics = {"accuracy": acc}
 
     if output_dir is not None:
-        id2label = {i: l for l, i in data_args.label2id.items()}
+        id2label = {i: l for l, i in label2id.items()}
         output_file = output_dir / "test_results.txt"
         with open(output_file, "w") as writer:
             writer.write("index\tprediction\n")
