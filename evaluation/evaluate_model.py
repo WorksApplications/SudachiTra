@@ -516,9 +516,6 @@ def main():
     processed_datasets = preprocess_dataset(datasets, data_args, tokenizer)
 
     with training_args.strategy.scope():
-        tf_datasets = convert_to_tf_datasets(
-            processed_datasets, data_args, training_args)
-
         if training_args.do_train:
             logger.info(f"finetune model:")
             for learning_rate, batch_size in it.product(data_args.learning_rate_list, data_args.batch_size_list):
@@ -537,6 +534,9 @@ def main():
                 if done_epochs > 0:
                     logger.info(
                         f"continue fine-tuning from epoch {done_epochs+1}")
+
+                tf_datasets = convert_to_tf_datasets(
+                    processed_datasets, data_args, training_args)
 
                 config = setup_config(model_args, checkpoint, data_args)
                 model = setup_model(model_args, checkpoint,
@@ -558,6 +558,9 @@ def main():
                     logger.info(f"model {dir_name} does not found. "
                                 f"run with --do_train option to train model")
                     continue
+
+                tf_datasets = convert_to_tf_datasets(
+                    processed_datasets, data_args, training_args)
 
                 config = AutoConfig.from_pretrained(
                     model_path, num_labels=len(data_args.label_list))
