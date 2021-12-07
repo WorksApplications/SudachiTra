@@ -296,8 +296,7 @@ def load_dataset(data_args, training_args):
         training_args.do_eval = data_files["validation"] is not None
         training_args.do_predict = data_files["test"] is not None
 
-    data_files = {k: str(Path(v).resolve())
-                  for k, v in data_files.items() if do_step[k]}
+    data_files = {k: str(Path(v).resolve()) for k, v in data_files.items()}
 
     # "csv" and "json" are valid
     dataset = hf_load_dataset(
@@ -559,11 +558,11 @@ def main():
                 model = setup_model(model_args, model_path,
                                     config, training_args, data_args.task_type)
                 metrics = evaluate_model(
-                    model, datasets["teset"], processed_datasets["teset"],
-                    tf_datasets["teset"], data_args, output_dir=model_path)
+                    model, datasets["test"], processed_datasets["test"],
+                    tf_datasets["test"], data_args, output_dir=model_path)
                 eval_results[dir_name] = metrics
 
-            for hp, mts in eval_results:
+            for hp, mts in eval_results.items():
                 for key, v in mts.items():
                     logger.info(f"{hp}, {key}: {v}")
 
