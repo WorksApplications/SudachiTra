@@ -325,8 +325,10 @@ def setup_tokenizer(model_args):
             }
         )
     else:
-        tokenizer_name = model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_args.tokenizer_name or model_args.model_name_or_path,
+            use_fast=True,
+        )
     return tokenizer
 
 

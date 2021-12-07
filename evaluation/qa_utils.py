@@ -33,6 +33,11 @@ def preprocess_dataset(dataset, data_args, tokenizer, max_length):
     answer_column = data_args.answer_column
 
     is_fast_tokenizer = isinstance(tokenizer, PreTrainedTokenizerFast)
+    if is_fast_tokenizer:
+        logger.info(f"The tokenizer is PreTrainedTokenizerFast.")
+    else:
+        logger.info(
+            f"The tokenizer is not PreTrainedTokenizerFast. We will mimic some its features.")
 
     def subfunc_train(examples):
         # strip question
