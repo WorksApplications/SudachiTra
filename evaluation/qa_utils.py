@@ -151,7 +151,7 @@ def preprocess_dataset(dataset, data_args, tokenizer, max_length):
             token_types[context_end] = 0  # skip last sep_token
 
             # set None for spans of non-context ids
-            result["offset_maping"][i] = [
+            result["offset_mapping"][i] = [
                 (o if token_types[k] == 1 else None)
                 for k, o in enumerate(result["offset_mapping"][i])
             ]
@@ -183,24 +183,30 @@ def _construct_offset_mapping(questions, contexts, tokenized, tokenizer):
         split_idx = token_types.index(1)
         ids_q = input_ids[:split_idx]
         ids_c = input_ids[split_idx:]
+        # spans: List[List[Tuple[int, int]]]
         spans_q = textspan.get_original_spans(
             tokens[:split_idx], question)
         spans_c = textspan.get_original_spans(
             tokens[split_idx:], context)
 
-        offsets = []
-        for z in (zip(ids_q, spans_q), zip(ids_c, spans_c)):
-            for i, (id, spans) in enumerate(z):
-                if id in reset_token_ids:
+        offsets = []  # :List[Tuple[int, int]]
+        for (ids, spans) in ((ids_q, spans_q), (ids_c, spans_c)):
+            assert len(ids) == len(
+                spans), "the number of tokens and spans should be same"
+            for i in range(len(ids)):
+                if ids[i] in reset_token_ids:
                     offsets.append((0, 0))
-                elif len(spans) > 0:
-                    offsets.append(spans[0])
+                elif len(spans[i]) > 0:
+                    offsets.append(spans[i][0])
                 else:
                     # complement based on prev/next span if none found.
                     # if prev/next is null, add empty span
                     begin = 0 if i == 0 else offsets[-1][1]
-                    end = begin if (
-                        i+1 >= len(spans_q) or len(spans_q[i+1]) == 0) else spans_q[i+1][0]
+                    if i+1 == len(spans) or len(spans[i+1]) == 0:
+                        end = begin
+                    else:
+                        # begin_idx of the first span of the next spans
+                        end = spans[i+1][0][0]
                     offsets.append((begin, end))
         offset_mapping.append(offsets)
     return offset_mapping
@@ -270,7 +276,7 @@ def setup_model(model_name_or_path, config, training_args, from_pt=False):
     )
 
     def dummy_loss(y_true, y_pred):
-        return tf.reduce_mead(y_pred)
+        return tf.reduce_mean(y_pred)
 
     losses = {"loss": dummy_loss}
     model.compile(optimizer=optimizer, loss=losses)
