@@ -211,8 +211,8 @@ def parse_args():
     parser.add_argument("-r", "--split-rate", type=str,
                         help="Split rate for train/validation/test data. "
                         "By default use dataset specific split if exists, 8/1/1 otherwise.")
-    parser.add_argument("-f", "--output-format", type=str, default="csv",
-                        help="Output data format. csv or json. csv by defaul.")
+    parser.add_argument("-f", "--output-format", type=str, default="json",
+                        help="Output data format. csv or json. json by defaul.")
 
     parser.add_argument("--overwrite", action="store_true",
                         help="Overwrite output files when they already exist.")
