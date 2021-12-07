@@ -30,9 +30,14 @@ def preprocess_dataset(dataset, data_args, tokenizer, max_length):
     else:
         column_names = data_columns[:2]
 
+    # Truncate text before tokenization for sudachi, which has a input bytes limit.
+    # This may affect the result with a large max_length (tokens).
+    MAX_CHAR_LENGTH = 2**14
+
     def subfunc(examples):
         # Tokenize texts
-        texts = (examples[c] for c in column_names)
+        texts = ([s[:MAX_CHAR_LENGTH] for s in examples[c]]
+                 for c in column_names)
         result = tokenizer(*texts, max_length=max_length, truncation=True)
 
         # Map labels to ids
