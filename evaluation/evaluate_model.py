@@ -313,9 +313,16 @@ def setup_tokenizer(model_args):
         word_type_token = "normalized_and_surface" if WORD_TYPE == "normalized_surface" else WORD_TYPE
 
         tokenizer = BertSudachipyTokenizer(
+            do_lower_case=False,
+            do_nfkc=True,  # default: False
+            do_word_tokenize=True,
+            do_subword_tokenize=True,
             vocab_file=model_args.sudachi_vocab_file,
             word_form_type=word_type_token,
-            sudachipy_kwargs={"split_mode": UNIT_TYPE}
+            sudachipy_kwargs={
+                "split_mode": UNIT_TYPE,
+                "dict_type": "core",
+            }
         )
     else:
         tokenizer_name = model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
