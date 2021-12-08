@@ -557,6 +557,11 @@ def main():
 
         if training_args.do_predict:
             logger.info(f"predict with test data:")
+
+            # ok to process outside loop
+            tf_datasets = convert_to_tf_datasets(
+                processed_datasets, data_args, training_args)
+
             eval_results = dict()
             for learning_rate, batch_size, n_epoch in it.product(
                     data_args.learning_rate_list, data_args.batch_size_list, range(int(training_args.num_train_epochs))):
@@ -569,9 +574,6 @@ def main():
                     logger.info(f"model {dir_name} does not found. "
                                 f"run with --do_train option to train model")
                     continue
-
-                tf_datasets = convert_to_tf_datasets(
-                    processed_datasets, data_args, training_args)
 
                 config = setup_config(None, model_path, data_args)
                 model = setup_model(model_args, model_path,
