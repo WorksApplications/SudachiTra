@@ -573,9 +573,7 @@ def main():
                 tf_datasets = convert_to_tf_datasets(
                     processed_datasets, data_args, training_args)
 
-                config = AutoConfig.from_pretrained(
-                    model_path, num_labels=len(data_args.label_list))
-
+                config = setup_config(None, model_path, data_args)
                 model = setup_model(model_args, model_path,
                                     config, training_args, data_args.task_type)
                 metrics = evaluate_model(

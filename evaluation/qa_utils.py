@@ -285,8 +285,8 @@ def setup_model(model_name_or_path, config, training_args, from_pt=False):
 
 def evaluate_model(model, dataset, processed_dataset, data_args, output_dir=None, stage="eval"):
     eval_inputs = {
-        "input_ids": tf.ragged.constant(dataset["input_ids"]).to_tensor(),
-        "attention_mask": tf.ragged.constant(dataset["attention_mask"]).to_tensor(),
+        "input_ids": tf.ragged.constant(processed_dataset["input_ids"]).to_tensor(),
+        "attention_mask": tf.ragged.constant(processed_dataset["attention_mask"]).to_tensor(),
     }
     eval_predictions = model.predict(eval_inputs)
     post_processed_eval = _post_processing_function(
