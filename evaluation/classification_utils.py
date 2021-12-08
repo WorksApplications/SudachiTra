@@ -62,8 +62,11 @@ def convert_dataset_for_tensorflow(
         else:
             return features, label
 
-    # trim input length for each batch
+    # convert all columns except "label".
+    # dataset should not have unneccessary columns.
     feature_keys = list(set(dataset.features.keys()) - {"label"})
+
+    # trim input length for each batch
     if dataset_mode == "variable_batch":
         batch_shape = {key: None for key in feature_keys}
         data = {key: tf.ragged.constant(dataset[key]) for key in feature_keys}
@@ -88,11 +91,13 @@ def convert_dataset_for_tensorflow(
 
     # ref: https://github.com/tensorflow/tensorflow/issues/42146
     options = tf.data.Options()
-    options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
-    tf_dataset = tf_dataset.with_options(options)
+    options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.OFF
 
-    tf_dataset = tf_dataset.batch(
-        batch_size=batch_size, drop_remainder=drop_remainder).map(densify_ragged_batch)
+    tf_dataset = (
+        tf_dataset.with_options(options)
+        .batch(batch_size=batch_size, drop_remainder=drop_remainder)
+        .map(densify_ragged_batch)
+    )
     return tf_dataset
 
 

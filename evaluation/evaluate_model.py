@@ -34,11 +34,13 @@ logger.setLevel(logging.INFO)
 
 class TaskType(Enum):
     CLASSIFICATION = "classification"
+    MULTIPLE_CHOICE = "multiple-choice"
     QA = "qa"
 
 
 dataset_info = {
     "amazon": {"task": TaskType.CLASSIFICATION},
+    "kuci": {"task": TaskType.MULTIPLE_CHOICE},
     "rcqa": {"task": TaskType.QA},
 }
 
@@ -75,7 +77,7 @@ class ModelArguments:
     )
 
     def __post_init__(self):
-        self.use_sudachi = self.tokenizer_name in ["sudachi", "Sudachi"]
+        self.use_sudachi = self.tokenizer_name.lower() == "sudachi"
         if self.use_sudachi:
             assert self.sudachi_vocab_file is not None, "sudachi_vocab_file is required to use sudachi tokenizer"
             assert self.word_form_type is not None, "word_form_type is required to use sudachi tokenizer"
@@ -116,7 +118,7 @@ class DataTrainingArguments:
     )
 
     max_seq_length: int = field(
-        default=128,
+        default=384,
         metadata={
             "help": "The maximum total input sequence length after tokenization. "
             "Sequences longer than this will be truncated, sequences shorter will be padded."
@@ -183,9 +185,8 @@ class DataTrainingArguments:
             self.task_type = dataset_info[self.dataset_name]["task"]
         else:
             if self.task_type is None:
-                logger.warning(
-                    f"task_type not found. Assume this is classification task.")
-                self.task_type = TaskType.CLASSIFICATION
+                raise ValueError(
+                    f"task_type not found and cannot infer from dataset_name.")
             self.task_type = TaskType(self.task_type.lower())
 
         # search dataset_dir for data files
@@ -375,7 +376,7 @@ def preprocess_dataset(dataset, data_args, tokenizer):
         dataset = qa_utils.preprocess_dataset(
             dataset, data_args, tokenizer, max_length)
     else:
-        raise ValueError(f"Unknown task type: {data_args.task_type}.")
+        raise NotImplementedError(f"task type: {data_args.task_type}.")
 
     return dataset
 
@@ -387,6 +388,8 @@ def convert_to_tf_datasets(datasets, data_args, training_args):
     elif data_args.task_type == TaskType.QA:
         skip_keys = ("validation", "test")
         convert_func = qa_utils.convert_dataset_for_tensorflow
+    else:
+        raise NotImplementedError(f"task type: {data_args.task_type}.")
 
     tf_datasets = {}
     for key in ("train", "validation", "test"):
@@ -432,7 +435,7 @@ def setup_model(model_args, checkpoint, config, training_args, task_type):
         model = qa_utils.setup_model(
             model_name_or_path, config, training_args, from_pt)
     else:
-        raise ValueError(f"Unknown task_type: {task_type}")
+        raise NotImplementedError(f"task type: {task_type}.")
 
     return model
 
@@ -451,7 +454,7 @@ class SaveModelCallback(tf.keras.callbacks.Callback):
 
 def finetune_model(model, tf_datasets, data_args, training_args, done_epochs):
     if data_args.task_type not in (TaskType.CLASSIFICATION, TaskType.QA):
-        raise ValueError(f"Unknown task_type: {data_args.task_type}")
+        raise NotImplementedError(f"task type: {data_args.task_type}.")
 
     rest_epochs = int(training_args.num_train_epochs) - done_epochs
     callbacks = [SaveModelCallback(training_args, done_epochs)]
@@ -474,6 +477,9 @@ def evaluate_model(model, dataset, processed_dataset, tf_dataset, data_args, con
     elif data_args.task_type == TaskType.QA:
         metrics = qa_utils.evaluate_model(
             model, dataset, processed_dataset, data_args, output_dir)
+
+    else:
+        raise NotImplementedError(f"task type: {data_args.task_type}.")
 
     return metrics
 
@@ -518,8 +524,7 @@ def main():
         data_args.answer_column = "answers" if "answers" in clm_names else clm_names[2]
         logger.info(f"work on a QA task.")
     else:
-        logger.error(f"Unknown task type: {data_args.task_type}.")
-        return
+        raise NotImplementedError(f"task type: {data_args.task_type}.")
 
     tokenizer = setup_tokenizer(model_args)
 

@@ -255,8 +255,16 @@ def convert_dataset_for_tensorflow(
         tf_dataset = tf.data.Dataset.from_tensor_slices(data)
     if shuffle:
         tf_dataset = tf_dataset.shuffle(buffer_size=len(dataset))
-    tf_dataset = tf_dataset.batch(
-        batch_size=batch_size, drop_remainder=drop_remainder).map(densify_ragged_batch)
+
+    # ref: https://github.com/tensorflow/tensorflow/issues/42146
+    options = tf.data.Options()
+    options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.OFF
+
+    tf_dataset = (
+        tf_dataset.with_options(options)
+        .batch(batch_size=batch_size, drop_remainder=drop_remainder)
+        .map(densify_ragged_batch)
+    )
     return tf_dataset
 
 
