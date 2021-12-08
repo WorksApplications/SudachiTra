@@ -20,6 +20,7 @@ from transformers.file_utils import CONFIG_NAME, TF2_WEIGHTS_NAME
 from sudachitra.tokenization_bert_sudachipy import BertSudachipyTokenizer
 
 import classification_utils
+import multiple_choice_utils
 import qa_utils
 
 
@@ -105,7 +106,8 @@ class DataTrainingArguments:
         default=None, metadata={"help": "A identifier of dataset."}
     )
     task_type: Optional[str] = field(
-        default=None, metadata={"help": "Task type of dataset."}
+        default=None, metadata={"help": f"Task type of dataset. One of {[t.value for t in TaskType]}. "
+                                f"Inferred from dataset_name if not set."}
     )
 
     learning_rate_list: Optional[List[float]] = field(
@@ -181,12 +183,13 @@ class DataTrainingArguments:
 
     def __post_init__(self):
         # set tasktype
-        if self.dataset_name in dataset_info:
-            self.task_type = dataset_info[self.dataset_name]["task"]
+        dataset_name = self.dataset_name.lower()
+        if dataset_name in dataset_info:
+            self.task_type = dataset_info[dataset_name]["task"]
         else:
             if self.task_type is None:
                 raise ValueError(
-                    f"task_type not found and cannot infer from dataset_name.")
+                    f"task_type not set and cannot infer from dataset_name.")
             self.task_type = TaskType(self.task_type.lower())
 
         # search dataset_dir for data files
@@ -306,6 +309,19 @@ def load_dataset(data_args, training_args):
     return dataset
 
 
+def setup_args(data_args, datasets):
+    subfunc = {
+        TaskType.CLASSIFICATION: classification_utils.setup_args,
+        TaskType.MULTIPLE_CHOICE: multiple_choice_utils.setup_args,
+        TaskType.QA: qa_utils.setup_args,
+    }.get(data_args.task_type, None)
+
+    if subfunc is None:
+        raise NotImplementedError(f"task type: {data_args.task_type}.")
+
+    return subfunc(data_args, datasets)
+
+
 def setup_tokenizer(model_args):
     if model_args.use_sudachi:
         WORD_TYPE = model_args.word_form_type
@@ -369,26 +385,32 @@ def preprocess_dataset(dataset, data_args, tokenizer):
                        f"model maximum length ({tokenizer.model_max_length}). Use latter.")
     max_length = min(tokenizer.model_max_length, data_args.max_seq_length)
 
-    if data_args.task_type == TaskType.CLASSIFICATION:
-        dataset = classification_utils.preprocess_dataset(
-            dataset, data_args, tokenizer, max_length)
-    elif data_args.task_type == TaskType.QA:
-        dataset = qa_utils.preprocess_dataset(
-            dataset, data_args, tokenizer, max_length)
-    else:
+    subfunc = {
+        TaskType.CLASSIFICATION: classification_utils.preprocess_dataset,
+        TaskType.MULTIPLE_CHOICE: multiple_choice_utils.preprocess_dataset,
+        TaskType.QA: qa_utils.preprocess_dataset,
+    }.get(data_args.task_type, None)
+
+    if subfunc is None:
         raise NotImplementedError(f"task type: {data_args.task_type}.")
 
+    dataset = subfunc(dataset, data_args, tokenizer, max_length)
     return dataset
 
 
 def convert_to_tf_datasets(datasets, data_args, training_args):
-    if data_args.task_type == TaskType.CLASSIFICATION:
-        skip_keys = ()
-        convert_func = classification_utils.convert_dataset_for_tensorflow
-    elif data_args.task_type == TaskType.QA:
+    skip_keys = ()
+    if data_args.task_type == TaskType.QA:
+        # apply different conversion in evaluate step
         skip_keys = ("validation", "test")
-        convert_func = qa_utils.convert_dataset_for_tensorflow
-    else:
+
+    convert_func = {
+        TaskType.CLASSIFICATION: classification_utils.convert_dataset_for_tensorflow,
+        TaskType.MULTIPLE_CHOICE: multiple_choice_utils.convert_dataset_for_tensorflow,
+        TaskType.QA: qa_utils.convert_dataset_for_tensorflow,
+    }.get(data_args.task_type, None)
+
+    if convert_func is None:
         raise NotImplementedError(f"task type: {data_args.task_type}.")
 
     tf_datasets = {}
@@ -428,15 +450,16 @@ def setup_model(model_args, checkpoint, config, training_args, task_type):
     model_name_or_path = model_args.model_name_or_path if checkpoint is None else checkpoint
     from_pt = model_args.from_pt if checkpoint is None else False
 
-    if task_type == TaskType.CLASSIFICATION:
-        model = classification_utils.setup_model(
-            model_name_or_path, config, training_args, from_pt)
-    elif task_type == TaskType.QA:
-        model = qa_utils.setup_model(
-            model_name_or_path, config, training_args, from_pt)
-    else:
+    setup_func = {
+        TaskType.CLASSIFICATION: classification_utils.setup_model,
+        TaskType.MULTIPLE_CHOICE: multiple_choice_utils.setup_model,
+        TaskType.QA: qa_utils.setup_model,
+    }.get(task_type, None)
+
+    if setup_func is None:
         raise NotImplementedError(f"task type: {task_type}.")
 
+    model = setup_func(model_name_or_path, config, training_args, from_pt)
     return model
 
 
@@ -453,9 +476,6 @@ class SaveModelCallback(tf.keras.callbacks.Callback):
 
 
 def finetune_model(model, tf_datasets, data_args, training_args, done_epochs):
-    if data_args.task_type not in (TaskType.CLASSIFICATION, TaskType.QA):
-        raise NotImplementedError(f"task type: {data_args.task_type}.")
-
     rest_epochs = int(training_args.num_train_epochs) - done_epochs
     callbacks = [SaveModelCallback(training_args, done_epochs)]
 
@@ -474,6 +494,10 @@ def evaluate_model(model, dataset, processed_dataset, tf_dataset, data_args, con
         metrics = classification_utils.evaluate_model(
             model, processed_dataset, tf_dataset, label2id, output_dir)
 
+    elif data_args.task_type == TaskType.MULTIPLE_CHOICE:
+        metrics = multiple_choice_utils.evaluate_model(
+            model, tf_dataset, output_dir)
+
     elif data_args.task_type == TaskType.QA:
         metrics = qa_utils.evaluate_model(
             model, dataset, processed_dataset, data_args, output_dir)
@@ -490,13 +514,12 @@ def main():
     logger.info(f"data args {data_args}")
     logger.info(f"training args {training_args}")
 
-    #
-    if data_args.dataset_name == "list":
+    if data_args.dataset_name.lower() == "list":
         logger.info(f"dataset_names implemented:")
         for nm in dataset_info:
             logger.info(f"{nm}")
         return
-    if data_args.dataset_name not in dataset_info:
+    if data_args.dataset_name.lower() not in dataset_info:
         logger.error(f"dataset_name passed ({data_args.dataset_name}) is not implemented. "
                      f"It must be one of {list(dataset_info.keys())} or \"list\".")
         return
@@ -508,24 +531,7 @@ def main():
     output_root.mkdir(parents=True, exist_ok=True)
 
     datasets = load_dataset(data_args, training_args)
-    if data_args.task_type == TaskType.CLASSIFICATION:
-        # num_label is neccessary to initialize model
-        dataset_key = list(datasets.keys())[0]  # at least one data file exists
-        data_args.label_list = datasets[dataset_key].unique("label")
-        data_args.label2id = {l: i for i, l in enumerate(data_args.label_list)}
-        logger.info(
-            f"work on a classification task with {len(data_args.label_list)} labels.")
-    elif data_args.task_type == TaskType.QA:
-        # decide columns following huggingface example
-        dataset_key = list(datasets.keys())[0]  # at least one data file exists
-        clm_names = datasets[dataset_key].column_names
-        data_args.question_column = "question" if "question" in clm_names else clm_names[0]
-        data_args.context_column = "context" if "context" in clm_names else clm_names[1]
-        data_args.answer_column = "answers" if "answers" in clm_names else clm_names[2]
-        logger.info(f"work on a QA task.")
-    else:
-        raise NotImplementedError(f"task type: {data_args.task_type}.")
-
+    data_args = setup_args(data_args, datasets)
     tokenizer = setup_tokenizer(model_args)
 
     logger.info(f"preprocess data:")

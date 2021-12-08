@@ -27,6 +27,18 @@ logging.basicConfig(
 logger.setLevel(logging.INFO)
 
 
+def setup_args(data_args, datasets):
+    # decide columns following huggingface example
+    dataset_key = list(datasets.keys())[0]  # at least one data file exists
+    clm_names = datasets[dataset_key].column_names
+
+    data_args.question_column = "question" if "question" in clm_names else clm_names[0]
+    data_args.context_column = "context" if "context" in clm_names else clm_names[1]
+    data_args.answer_column = "answers" if "answers" in clm_names else clm_names[2]
+    logger.info(f"work on a QA task.")
+    return data_args
+
+
 def preprocess_dataset(dataset, data_args, tokenizer, max_length):
     question_column = data_args.question_column
     context_column = data_args.context_column

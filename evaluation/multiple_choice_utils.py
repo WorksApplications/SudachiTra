@@ -1,10 +1,11 @@
 import logging
 import sys
+import itertools as it
 
 import numpy as np
 import tensorflow as tf
 from transformers import (
-    TFAutoModelForSequenceClassification,
+    TFAutoModelForMultipleChoice,
 )
 
 
@@ -18,44 +19,43 @@ logger.setLevel(logging.INFO)
 
 
 def setup_args(data_args, datasets):
-    # num_label is neccessary to initialize model
+    # set dataset column name, assuming to use convert_dataset.py
     dataset_key = list(datasets.keys())[0]  # at least one data file exists
-    label_list = datasets[dataset_key].unique("label")
-    logger.info(f"classification task with {len(label_list)} labels.")
+    clm_names = datasets[dataset_key].column_names
 
-    data_args.label_list = label_list
-    data_args.label2id = {l: i for i, l in enumerate(label_list)}
+    n_choices = 0
+    while f"choice_{n_choices}" in clm_names:
+        n_choices += 1
+
+    data_args.context_column = "context"
+    data_args.choice_columns = [f"choice_{i}" for i in range(n_choices)]
+    data_args.label_column = "label"
     return data_args
 
 
 def preprocess_dataset(dataset, data_args, tokenizer, max_length):
-    # select columns to tokenize
-    dataset_name = list(dataset.keys())[0]
-    data_columns = [
-        c for c in dataset[dataset_name].column_names if c != "label"]
-    if "sentence1" in data_columns:
-        if "sentence2" in data_columns:
-            column_names = ["sentence1", "sentence2"]
-        else:
-            column_names = ["sentence1"]
-    else:
-        column_names = data_columns[:2]
+    context_column = data_args.context_column
+    choice_columns = data_args.choice_columns
+    label_column = data_args.label_column
+    n_choices = len(choice_columns)
 
-    # Truncate text before tokenization for sudachi, which has a input bytes limit.
-    # This may affect the result with a large max_length (tokens).
-    MAX_CHAR_LENGTH = 2**14
+    dataset_key = list(dataset.keys())[0]
+    data_columns = [
+        c for c in dataset[dataset_key].column_names if c != label_column]
 
     def subfunc(examples):
-        # Tokenize texts
-        texts = ([s[:MAX_CHAR_LENGTH] for s in examples[c]]
-                 for c in column_names)
-        result = tokenizer(*texts, max_length=max_length, truncation=True)
+        first_sentences = ([c] * n_choices for c in examples[context_column])
+        first_sentences = list(it.chain(*first_sentences))
+        second_sentences = (examples[clm] for clm in choice_columns)
+        second_sentences = list(it.chain(*zip(*second_sentences)))
 
-        # Map labels to ids
-        if "label" in examples:
-            result["label"] = [
-                (data_args.label2id[l] if l != -1 else -1) for l in examples["label"]]
-        return result
+        tokenized = tokenizer(first_sentences, second_sentences,
+                              max_length=max_length, truncation=True)
+
+        # un-flatten
+        data = {k: [v[i:i+n_choices] for i in range(0, len(v), n_choices)]
+                for k, v in tokenized.items()}
+        return data
 
     dataset = dataset.map(subfunc, batched=True, remove_columns=data_columns)
     return dataset
@@ -113,7 +113,7 @@ def convert_dataset_for_tensorflow(
 
 
 def setup_model(model_name_or_path, config, training_args, from_pt=False):
-    model = TFAutoModelForSequenceClassification.from_pretrained(
+    model = TFAutoModelForMultipleChoice.from_pretrained(
         model_name_or_path,
         config=config,
         from_pt=from_pt,
@@ -127,27 +127,23 @@ def setup_model(model_name_or_path, config, training_args, from_pt=False):
         clipnorm=training_args.max_grad_norm,
     )
     loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-    metrics = ["accuracy"]
+    metrics = [tf.keras.metrics.SparseCategoricalAccuracy(name="accuracy")]
 
     model.compile(optimizer=optimizer, loss=loss_fn, metrics=metrics)
     return model
 
 
-def evaluate_model(model, processed_dataset, tf_dataset, label2id, output_dir=None):
-    predictions = model.predict(tf_dataset)["logits"]
-    predicted_class = np.argmax(predictions, axis=1)
-
-    labels = processed_dataset["label"]
-    acc = sum(predicted_class == labels) / len(labels)
-    metrics = {"accuracy": acc}
+def evaluate_model(model, tf_dataset, output_dir=None):
+    metrics = model.evaluate(tf_dataset, return_dict=True)
 
     if output_dir is not None:
-        id2label = {i: l for l, i in label2id.items()}
+        predictions = model.predict(tf_dataset)["logits"]
+        predicted_class = np.argmax(predictions, axis=1)
+
         output_file = output_dir / "test_results.txt"
         with open(output_file, "w") as writer:
             writer.write("index\tprediction\n")
             for index, item in enumerate(predicted_class):
-                item = id2label[item]
                 writer.write(f"{index}\t{item}\n")
 
     return metrics
