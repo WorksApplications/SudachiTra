@@ -309,8 +309,9 @@ def setup_tokenizer(model_args):
     if model_args.use_sudachi:
         WORD_TYPE = model_args.word_form_type
         UNIT_TYPE = model_args.split_unit_type
-
         word_type_token = "normalized_and_surface" if WORD_TYPE == "normalized_surface" else WORD_TYPE
+        logger.info(
+            f"Use sudachi tokenizer ({WORD_TYPE}, {UNIT_TYPE}, {model_args.sudachi_vocab_file}).")
 
         tokenizer = BertSudachipyTokenizer(
             do_lower_case=False,
