@@ -3,6 +3,7 @@ import logging
 import sys
 from collections import defaultdict as ddict
 from pathlib import Path
+from typing import Dict
 
 from datasets import load_dataset, DatasetDict
 
@@ -20,9 +21,18 @@ def convert_amazon(args):
     # convert Amazon Review Corpus (https://registry.opendata.aws/amazon-reviews-ml/)
 
     if args.dataset_dir_or_file is None:
-        # TODO: load from HF hub (https://huggingface.co/datasets/amazon_reviews_multi)
-        raise ValueError(f"Provide the raw data file with --input option. "
-                         f"Download and unzip it first (https://s3.amazonaws.com/amazon-reviews-pds/readme.html).")
+        logger.info("Load data from hugging face hub.")
+        datasets = load_dataset("amazon_reviews_multi", "ja")
+
+        if args.seed is not None or args.split_rate is not None:
+            logger.warning("Amazon review from HF-hub is already splitted. "
+                           "skip shuffle and split")
+
+        datasets = select_column(datasets, {
+            "review_body": "sentence1",
+            "stars": "label",
+        })
+
     else:
         dataset_file = Path(args.dataset_dir_or_file)
         FILE_NAME = "amazon_reviews_multilingual_JP_v1_00.tsv.gz"
@@ -35,13 +45,14 @@ def convert_amazon(args):
         dataset = load_dataset("csv", data_files=str(
             dataset_file), delimiter="\t")["train"]
 
-    dataset = select_column(dataset, {
-        "review_body": "sentence1",
-        "star_rating": "label",
-    })
+        dataset = shuffle_dataset(dataset, args.seed)
+        datasets = split_dataset(dataset, args.split_rate)
 
-    dataset = shuffle_dataset(dataset, args.seed)
-    datasets = split_dataset(dataset, args.split_rate)
+        datasets = select_column(datasets, {
+            "review_body": "sentence1",
+            "star_rating": "label",
+        })
+
     return datasets
 
 
@@ -158,14 +169,17 @@ def convert_rcqa(args):
     return datasets
 
 
-def select_column(dataset, rename_map):
-    dataset = dataset.remove_columns(
-        [c for c in dataset.column_names if c not in rename_map])
+def select_column(datasets: DatasetDict, rename_map: Dict[str, str]):
+    # assume there is train dataset
+    column_names = datasets["train"].column_names
+
+    datasets = datasets.remove_columns(
+        [c for c in column_names if c not in rename_map])
 
     for k, v in rename_map.items():
-        dataset = dataset.rename_column(k, v)
+        datasets = datasets.rename_column(k, v)
 
-    return dataset
+    return datasets
 
 
 def shuffle_dataset(dataset, seed):
@@ -174,7 +188,7 @@ def shuffle_dataset(dataset, seed):
         logger.info(f"shuffle data with seed {seed}.")
         return dataset.shuffle(seed=seed)
     else:
-        logger.info(f"skip shuffle. set seed to shuffle.")
+        logger.info(f"skip shuffle. set seed option to shuffle.")
         return dataset
 
 
