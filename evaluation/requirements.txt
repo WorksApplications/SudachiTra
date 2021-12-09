@@ -1,16 +1,21 @@
 # tensorflow
 tensorflow
+
 # huggingface
 transformers
 tokenizers
 datasets
+
 # sudachi
 sudachitra
+
 # util
 pytextspan
+fugashi
+mojimoji
+pyknp
 
 # tohoku-bert
-fugashi
 unidic_lite
 ipadic
 
