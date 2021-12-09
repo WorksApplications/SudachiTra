@@ -5,7 +5,7 @@ from collections import defaultdict as ddict
 from pathlib import Path
 from typing import Dict
 
-from datasets import load_dataset, DatasetDict
+from datasets import load_dataset, Dataset, DatasetDict
 
 
 logger = logging.getLogger(__name__)
@@ -22,38 +22,42 @@ def convert_amazon(args):
 
     if args.dataset_dir_or_file is None:
         logger.info("Load data from hugging face hub.")
-        datasets = load_dataset("amazon_reviews_multi", "ja")
+        datadict = load_dataset("amazon_reviews_multi", "ja")
 
         if args.seed is not None or args.split_rate is not None:
             logger.warning("Amazon review from HF-hub is already splitted. "
                            "skip shuffle and split")
 
-        datasets = select_column(datasets, {
+        datadict = select_column(datadict, {
             "review_body": "sentence1",
             "stars": "label",
         })
+        datadict = DatasetDict({
+            "train": datadict["train"],
+            "dev": datadict["validation"],
+            "test": datadict["test"]}
+        )
 
     else:
         dataset_file = Path(args.dataset_dir_or_file)
         FILE_NAME = "amazon_reviews_multilingual_JP_v1_00.tsv.gz"
         if dataset_file.is_dir():
             dataset_file = dataset_file / FILE_NAME
-        if not dataset_file.exists() or dataset_file.name != FILE_NAME:
-            raise ValueError(f"file {FILE_NAME} does not exixts. "
-                             f"File name must be {FILE_NAME}.")
+        if not dataset_file.exists():
+            raise ValueError(f"file {FILE_NAME} does not exixts.")
 
         dataset = load_dataset("csv", data_files=str(
             dataset_file), delimiter="\t")["train"]
 
         dataset = shuffle_dataset(dataset, args.seed)
-        datasets = split_dataset(dataset, args.split_rate)
+        datadict = split_dataset(dataset, args.split_rate)
 
-        datasets = select_column(datasets, {
+        datadict = select_column(datadict, {
             "review_body": "sentence1",
             "star_rating": "label",
         })
 
-    return datasets
+    return datadict
 
 
 def convert_kuci(args):
@@ -74,7 +78,11 @@ def convert_kuci(args):
         "dev": str(dataset_dir / "development.jsonl"),
         "test": str(dataset_dir / "test.jsonl"),
     }
-    datasets = load_dataset("json", data_files=datafiles)
+    for p in datafiles.values():
+        if not Path(p).exists():
+            raise ValueError(f"File {p} doen not exists.")
+
+    datadict = load_dataset("json", data_files=datafiles)
 
     if args.split_rate is not None:
         logger.warning("KUCI dataset is splitted by author. skip split.")
@@ -94,10 +102,10 @@ def convert_kuci(args):
                                       for t in example[f"choice_{a}"]]
         return example
 
-    datasets = datasets.map(convert, batched=True,
+    datadict = datadict.map(convert, batched=True,
                             remove_columns=[f"choice_{a}" for a in a2i.keys()])
 
-    return datasets
+    return datadict
 
 
 def convert_livedoor(args):
@@ -118,22 +126,20 @@ def convert_rcqa(args):
     if dataset_file.is_dir():
         dataset_file = dataset_file / FILE_NAME
     if not dataset_file.exists():
-        raise ValueError(f"File {dataset_file} does not exists. "
-                         f"File name must be {FILE_NAME}.")
+        raise ValueError(f"File {dataset_file} does not exists.")
 
     dataset = load_dataset("json", data_files=str(dataset_file))["train"]
-    column_names = dataset.column_names
 
     if args.split_rate is None:
         # split by timestamp, following NICT's experiment
-        datasets = DatasetDict({
+        datadict = DatasetDict({
             "train": dataset.filter(lambda row: row["timestamp"] < "2009"),
             "dev": dataset.filter(lambda row: "2009" <= row["timestamp"] < "2010"),
             "test": dataset.filter(lambda row: "2010" <= row["timestamp"]),
         })
     else:
         dataset = shuffle_dataset(dataset, args.seed)
-        datasets = split_dataset(dataset, args.split_rate)
+        datadict = split_dataset(dataset, args.split_rate)
 
     # flatten documents column
     def flatten_doc(examples):
@@ -145,10 +151,10 @@ def convert_rcqa(args):
             outputs["documents"].extend(docs)
             outputs["doc_id"].extend(range(1, len(docs)+1))
         return outputs
-    datasets = datasets.map(flatten_doc, batched=True).flatten()
+    datadict = datadict.map(flatten_doc, batched=True).flatten()
 
-    for key in datasets:
-        logger.info(f"data count for {key} split: {len(datasets[key])}")
+    for key in datadict:
+        logger.info(f"data count for {key} split: {len(datadict[key])}")
 
     # arrange data structure following the squad_v2 dataset in HF-hub
     def convert(example):
@@ -164,25 +170,26 @@ def convert_rcqa(args):
             "answers": {"text": [example["answer"]] if not is_impossible else [],
                         "answer_start": [answer_start] if not is_impossible else [], },
         }
-    datasets = datasets.map(convert, remove_columns=column_names)
+    datadict = datadict.map(
+        convert, remove_columns=datadict["train"].column_names)
 
-    return datasets
+    return datadict
 
 
-def select_column(datasets: DatasetDict, rename_map: Dict[str, str]):
+def select_column(datadict: DatasetDict, rename_map: Dict[str, str]):
     # assume there is train dataset
-    column_names = datasets["train"].column_names
+    column_names = datadict["train"].column_names
 
-    datasets = datasets.remove_columns(
+    datadict = datadict.remove_columns(
         [c for c in column_names if c not in rename_map])
 
     for k, v in rename_map.items():
-        datasets = datasets.rename_column(k, v)
+        datadict = datadict.rename_column(k, v)
 
-    return datasets
+    return datadict
 
 
-def shuffle_dataset(dataset, seed):
+def shuffle_dataset(dataset: Dataset, seed=None):
     # shuffle if seed is given
     if seed is not None:
         logger.info(f"shuffle data with seed {seed}.")
@@ -192,8 +199,7 @@ def shuffle_dataset(dataset, seed):
         return dataset
 
 
-def split_dataset(dataset, split_rate_str):
-    logger.info(f"whole data count: {len(dataset)}")
+def split_dataset(dataset: Dataset, split_rate_str: str):
     # split into 3 parts
     # ref: https://discuss.huggingface.co/t/how-to-split-main-dataset-into-train-dev-test-as-datasetdict/1090
 
@@ -212,7 +218,7 @@ def split_dataset(dataset, split_rate_str):
         test_size=r_valtest, shuffle=False)
 
     if v_val == 0:
-        dataset = DatasetDict({
+        datadict = DatasetDict({
             "train": train_testvalid["train"],
             "test": train_testvalid["test"],
         })
@@ -220,36 +226,37 @@ def split_dataset(dataset, split_rate_str):
         test_valid = train_testvalid["test"].train_test_split(
             test_size=r_test, shuffle=False)
 
-        dataset = DatasetDict({
+        datadict = DatasetDict({
             "train": train_testvalid["train"],
             "dev": test_valid["train"],
             "test": test_valid["test"],
         })
 
-    for key in dataset:
-        logger.info(f"data count for {key} split: {len(dataset[key])}")
+    logger.info(f"whole data count: {len(dataset)}")
+    for key in datadict:
+        logger.info(f"data count for {key} split: {len(datadict[key])}")
 
-    return dataset
+    return datadict
 
 
-def save_dataset(dataset, output_dir, output_format):
+def save_datasets(datadict, output_dir, output_format):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     for key in ("train", "dev", "test"):
-        if key not in dataset:
+        if key not in datadict:
             continue
 
         out_file = output_dir / f"{key}.{output_format}"
         if output_format == "csv":
-            dataset[key].to_csv(out_file, index=False)
+            datadict[key].to_csv(out_file, index=False)
         elif output_format == "json":
-            dataset[key].to_json(out_file)
+            datadict[key].to_json(out_file)
 
     return
 
 
-DATASET_FUNCS = {
+CONVERT_FUNCS = {
     "amazon": convert_amazon,
     "kuci": convert_kuci,
     "rcqa": convert_rcqa,
@@ -279,7 +286,6 @@ def parse_args():
 
     args = parser.parse_args()
     args.dataset_name = args.dataset_name.lower()
-
     return args
 
 
@@ -287,13 +293,13 @@ def main():
     args = parse_args()
 
     if args.dataset_name == "list":
-        logger.info(f"Available datasets: {list(DATASET_FUNCS.keys())}")
+        logger.info(f"Available datasets: {list(CONVERT_FUNCS.keys())}")
         return
 
     # check
-    if args.dataset_name not in DATASET_FUNCS:
+    if args.dataset_name not in CONVERT_FUNCS:
         logger.error(f"Unknown dataset name ({args.dataset_name}). "
-                     f"It must be one of {list(DATASET_FUNCS.keys())} or \"list\"")
+                     f"It must be one of {list(CONVERT_FUNCS.keys())} or \"list\"")
         return
     if args.output_format not in OUTPUT_FORMATS:
         logger.error(f"Unknown dataset name ({args.output_format}). "
@@ -307,10 +313,10 @@ def main():
                     f"File {out_file} already exists. Set --overwrite to continue anyway.")
                 return
 
-    convert_func = DATASET_FUNCS[args.dataset_name]
-    dataset = convert_func(args)
+    convert_func = CONVERT_FUNCS[args.dataset_name]
+    datadict = convert_func(args)
 
-    save_dataset(dataset, args.output_dir, args.output_format)
+    save_datasets(datadict, args.output_dir, args.output_format)
     return
 
 
