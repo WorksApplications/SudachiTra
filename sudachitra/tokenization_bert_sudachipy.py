@@ -198,6 +198,9 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
         self.sudachipy_kwargs = copy.deepcopy(sudachipy_kwargs)
         self.word_tokenizer = SudachipyWordTokenizer(**(self.sudachipy_kwargs or {}))
         self.word_form_type = word_form_type
+        if self.word_form_type == "normalized_conjugation":
+            from sudachitra.normalizer_leaved_conjugation import NormalizerLeavedConjugation
+            self.nlc = NormalizerLeavedConjugation("sudachitra/resources/inflectoin_table.json", "sudachitra/resources/conjugation_type_table.json")
 
         self.do_subword_tokenize = do_subword_tokenize
         self.subword_tokenizer_type = subword_tokenizer_type
@@ -240,7 +243,10 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
     def _tokenize(self, text, **kwargs):
         text = self.normalizer.normalize_str(text)
         tokens = self.word_tokenizer.tokenize(text)
-        word_format = WORD_FORM_TYPES[self.word_form_type]
+        if self.word_form_type == "normalized_conjugation":
+            def word_format(m): return self.nlc.normalized(m)
+        else:
+            word_format = WORD_FORM_TYPES[self.word_form_type]
         if self.do_subword_tokenize:
             if self.subword_tokenizer_type == "pos_substitution":
                 def _substitution(token):
