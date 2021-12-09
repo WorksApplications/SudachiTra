@@ -21,15 +21,16 @@ def convert_amazon(args):
 
     if args.dataset_dir_or_file is None:
         # TODO: load from HF hub (https://huggingface.co/datasets/amazon_reviews_multi)
-        raise ValueError(f"input data file is necessary for this dataset")
+        raise ValueError(f"Provide the raw data file with --input option. "
+                         f"Download and unzip it first (https://s3.amazonaws.com/amazon-reviews-pds/readme.html).")
     else:
         dataset_file = Path(args.dataset_dir_or_file)
-        FILE_NAME = "amazon_reviews_multilingual_JP_v1_00.tsv"
+        FILE_NAME = "amazon_reviews_multilingual_JP_v1_00.tsv.gz"
         if dataset_file.is_dir():
             dataset_file = dataset_file / FILE_NAME
         if not dataset_file.exists() or dataset_file.name != FILE_NAME:
             raise ValueError(f"file {FILE_NAME} does not exixts. "
-                             f"Download and unzip it first (https://s3.amazonaws.com/amazon-reviews-pds/readme.html).")
+                             f"File name must be {FILE_NAME}.")
 
         dataset = load_dataset("csv", data_files=str(
             dataset_file), delimiter="\t")["train"]
@@ -40,46 +41,88 @@ def convert_amazon(args):
     })
 
     dataset = shuffle_dataset(dataset, args.seed)
-    dataset = split_dataset(dataset, args.split_rate)
-    return dataset
+    datasets = split_dataset(dataset, args.split_rate)
+    return datasets
+
+
+def convert_kuci(args):
+    # convert 京都大学常識推論データセット(KUCI) (https://nlp.ist.i.kyoto-u.ac.jp/?KUCI)
+
+    if args.dataset_dir_or_file is None:
+        raise ValueError(f"Provide the raw data directory with --input option. "
+                         f"Download and untar it first (https://nlp.ist.i.kyoto-u.ac.jp/?KUCI).")
+    dataset_dir = Path(args.dataset_dir_or_file)
+    if not dataset_dir.exists():
+        raise ValueError(f"{dataset_dir} does not exists.")
+    if dataset_dir.is_file():
+        raise ValueError(
+            f"Provide untared directory instead of tar file: {dataset_dir}.")
+
+    datafiles = {
+        "train": str(dataset_dir / "train.jsonl"),
+        "dev": str(dataset_dir / "development.jsonl"),
+        "test": str(dataset_dir / "test.jsonl"),
+    }
+    datasets = load_dataset("json", data_files=datafiles)
+
+    if args.split_rate is not None:
+        logger.warning("KUCI dataset is splitted by author. skip split.")
+    if args.seed is not None:
+        logger.warning("KUCI dataset is splitted by author. skip shuffle.")
+
+    a2i = {c: i for i, c in enumerate("abcd")}
+
+    def convert(example):
+        # change choice index from alphabet to integer
+        example["label"] = [a2i[a] for a in example["label"]]
+
+        # concatenate tokens (raw texts are tokenized using Juman)
+        example["context"] = ["".join(t.split()) for t in example["context"]]
+        for a, i in a2i.items():
+            example[f"choice_{i}"] = ["".join(t.split())
+                                      for t in example[f"choice_{a}"]]
+        return example
+
+    datasets = datasets.map(convert, batched=True,
+                            remove_columns=[f"choice_{a}" for a in a2i.keys()])
+
+    return datasets
 
 
 def convert_livedoor(args):
-    # todo
-    dataset_dir = Path(args.dataset_dir_or_file)
-    return
+    raise NotImplementedError()
 
 
 def convert_rcqa(args):
-    # convert 解答可能性付き読解 dataset (http://www.cl.ecei.tohoku.ac.jp/rcqa/),
+    # convert 解答可能性付き読解データセット (http://www.cl.ecei.tohoku.ac.jp/rcqa/),
     # following NICT's experiment (https://alaginrc.nict.go.jp/nict-bert/Experiments_on_RCQA.html).
     # also refer: https://github.com/tsuchm/nict-bert-rcqa-test
 
     if args.dataset_dir_or_file is None:
-        raise ValueError(f"input data file is necessary for this dataset")
+        raise ValueError(f"Provide the raw data file with --input option. "
+                         f"Download it first (http://www.cl.ecei.tohoku.ac.jp/rcqa/all-v1.0.json.gz).")
 
     dataset_file = Path(args.dataset_dir_or_file)
     FILE_NAME = "all-v1.0.json.gz"
     if dataset_file.is_dir():
         dataset_file = dataset_file / FILE_NAME
     if not dataset_file.exists():
-        raise ValueError(f"file {dataset_file} does not exists. "
-                         f"Download it from http://www.cl.ecei.tohoku.ac.jp/rcqa/all-v1.0.json.gz")
+        raise ValueError(f"File {dataset_file} does not exists. "
+                         f"File name must be {FILE_NAME}.")
 
     dataset = load_dataset("json", data_files=str(dataset_file))["train"]
+    column_names = dataset.column_names
 
     if args.split_rate is None:
         # split by timestamp, following NICT's experiment
-        dataset = DatasetDict({
+        datasets = DatasetDict({
             "train": dataset.filter(lambda row: row["timestamp"] < "2009"),
             "dev": dataset.filter(lambda row: "2009" <= row["timestamp"] < "2010"),
             "test": dataset.filter(lambda row: "2010" <= row["timestamp"]),
         })
-        for key in dataset:
-            logger.info(f"data count for {key} split: {len(dataset[key])}")
     else:
         dataset = shuffle_dataset(dataset, args.seed)
-        dataset = split_dataset(dataset, args.split_rate)
+        datasets = split_dataset(dataset, args.split_rate)
 
     # flatten documents column
     def flatten_doc(examples):
@@ -91,9 +134,12 @@ def convert_rcqa(args):
             outputs["documents"].extend(docs)
             outputs["doc_id"].extend(range(1, len(docs)+1))
         return outputs
-    dataset = dataset.map(flatten_doc, batched=True).flatten()
+    datasets = datasets.map(flatten_doc, batched=True).flatten()
 
-    # arrange data structure
+    for key in datasets:
+        logger.info(f"data count for {key} split: {len(datasets[key])}")
+
+    # arrange data structure following the squad_v2 dataset in HF-hub
     def convert(example):
         qid = f'{example["qid"]}{example["doc_id"]:04d}'
         is_impossible = example["documents.score"] < 2
@@ -107,10 +153,9 @@ def convert_rcqa(args):
             "answers": {"text": [example["answer"]] if not is_impossible else [],
                         "answer_start": [answer_start] if not is_impossible else [], },
         }
-    dataset = dataset.map(
-        convert, remove_columns=dataset["train"].column_names)
+    datasets = datasets.map(convert, remove_columns=column_names)
 
-    return dataset
+    return datasets
 
 
 def select_column(dataset, rename_map):
@@ -192,6 +237,7 @@ def save_dataset(dataset, output_dir, output_format):
 
 DATASET_FUNCS = {
     "amazon": convert_amazon,
+    "kuci": convert_kuci,
     "rcqa": convert_rcqa,
 }
 OUTPUT_FORMATS = ["csv", "json"]
@@ -218,6 +264,8 @@ def parse_args():
                         help="Overwrite output files when they already exist.")
 
     args = parser.parse_args()
+    args.dataset_name = args.dataset_name.lower()
+
     return args
 
 
@@ -225,17 +273,16 @@ def main():
     args = parse_args()
 
     if args.dataset_name == "list":
-        for nm in DATASET_FUNCS.keys():
-            print(nm)
+        logger.info(f"Available datasets: {list(DATASET_FUNCS.keys())}")
         return
 
     # check
     if args.dataset_name not in DATASET_FUNCS:
-        logger.error(f"unknown dataset name ({args.dataset_name}). "
+        logger.error(f"Unknown dataset name ({args.dataset_name}). "
                      f"It must be one of {list(DATASET_FUNCS.keys())} or \"list\"")
         return
     if args.output_format not in OUTPUT_FORMATS:
-        logger.error(f"unknown dataset name ({args.output_format}). "
+        logger.error(f"Unknown dataset name ({args.output_format}). "
                      f"It must be one of {OUTPUT_FORMATS}")
         return
     if not args.overwrite:
