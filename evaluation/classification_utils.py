@@ -28,7 +28,7 @@ def setup_args(data_args, datasets):
     return data_args
 
 
-def preprocess_dataset(dataset, data_args, tokenizer, max_length):
+def preprocess_dataset(dataset, data_args, pretok, tokenizer, max_length):
     # select columns to tokenize
     dataset_name = list(dataset.keys())[0]
     data_columns = [
@@ -47,7 +47,7 @@ def preprocess_dataset(dataset, data_args, tokenizer, max_length):
 
     def subfunc(examples):
         # Tokenize texts
-        texts = ([s[:MAX_CHAR_LENGTH] for s in examples[c]]
+        texts = ([pretok(s[:MAX_CHAR_LENGTH]) for s in examples[c]]
                  for c in column_names)
         result = tokenizer(*texts, max_length=max_length, truncation=True)
 

@@ -39,7 +39,7 @@ def setup_args(data_args, datasets):
     return data_args
 
 
-def preprocess_dataset(dataset, data_args, tokenizer, max_length):
+def preprocess_dataset(dataset, data_args, pretok, tokenizer, max_length):
     question_column = data_args.question_column
     context_column = data_args.context_column
     answer_column = data_args.answer_column
@@ -50,6 +50,23 @@ def preprocess_dataset(dataset, data_args, tokenizer, max_length):
     else:
         logger.info(
             f"The tokenizer is not PreTrainedTokenizerFast. We will mimic some its features.")
+
+    def subfunc_pretok(examples):
+        examples[question_column] = [
+            pretok(q.lstrip()) for q in examples[question_column]]
+        examples[context_column] = [
+            pretok(c) for c in examples[context_column]]
+
+        if not pretok.is_identity:
+            # recalculate answer_start for pretoked contexts
+            answer_lists = examples[answer_column]  # List[List[Dict]]
+            for i, answers in enumerate(answer_lists):
+                context = examples[context_column][i]
+                for ans in answers:
+                    ans["answer_start"] = context.index(ans["text"])
+            examples[answer_column] = answer_lists
+
+        return examples
 
     def subfunc_train(examples):
         # strip question
@@ -172,6 +189,8 @@ def preprocess_dataset(dataset, data_args, tokenizer, max_length):
 
     dataset_name = list(dataset.keys())[0]
     column_names = dataset[dataset_name].column_names
+
+    dataset = dataset.map(subfunc_pretok, batched=True)
 
     processed = {}
     for key, subfunc in (("train", subfunc_train), ("validation", subfunc_test), ("test", subfunc_test)):

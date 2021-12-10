@@ -22,6 +22,7 @@ from sudachitra.tokenization_bert_sudachipy import BertSudachipyTokenizer
 import classification_utils
 import multiple_choice_utils
 import qa_utils
+import tokenizer_util
 
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,10 @@ class ModelArguments:
     tokenizer_name: Optional[str] = field(
         default=None, metadata={"help": "\"sudachi\" or pretrained tokenizer name or path if not the same as model_name"}
     )
+    pretokenizer_name: Optional[str] = field(
+        default=None, metadata={"help": "Tokenizer to convert text space-separated before preprocess. "
+                                "\"juman\" (for Kyoto-U BERT) or \"mecab-juman\" (for NICT-BERT)."}
+    )
     from_pt: bool = field(
         default=False, metadata={"help": "Set True when load PyTorch save file"}
     )
@@ -83,6 +88,10 @@ class ModelArguments:
             assert self.sudachi_vocab_file is not None, "sudachi_vocab_file is required to use sudachi tokenizer"
             assert self.word_form_type is not None, "word_form_type is required to use sudachi tokenizer"
             assert self.split_unit_type is not None, "split_unit_type is required to use sudachi tokenizer"
+
+        if self.pretokenizer_name is not None:
+            assert self.pretokenizer_name.lower() in ["juman", "mecab-juman"], \
+                "pretokenizer_name should be \"juman\" or \"mecab-juman\""
 
 
 @dataclass
@@ -322,6 +331,20 @@ def setup_args(data_args, datasets):
     return subfunc(data_args, datasets)
 
 
+def setup_pretokenizer(model_args):
+    # tokenizer for some models requires texts to be space-separated.
+    # pretokenizer works for that.
+    if model_args.pretokenizer_name == "juman":
+        logger.info("Use juman for pretokenize")
+        return tokenizer_util.Juman()
+    if model_args.pretokenizer_name == "mecab-juman":
+        logger.info("Use mecab-juman for pretokenize")
+        return tokenizer_util.MecabJuman()
+
+    logger.info("Skip pretokenize")
+    return tokenizer_util.Identity()
+
+
 def setup_tokenizer(model_args):
     if model_args.use_sudachi:
         WORD_TYPE = model_args.word_form_type
@@ -368,7 +391,7 @@ def setup_config(model_args, checkpoint, data_args):
     return config
 
 
-def preprocess_dataset(dataset, data_args, tokenizer):
+def preprocess_dataset(dataset, data_args, pretok, tokenizer):
     # limit number of samples if specified
     max_samples = {
         "train": data_args.max_train_samples,
@@ -394,7 +417,7 @@ def preprocess_dataset(dataset, data_args, tokenizer):
     if subfunc is None:
         raise NotImplementedError(f"task type: {data_args.task_type}.")
 
-    dataset = subfunc(dataset, data_args, tokenizer, max_length)
+    dataset = subfunc(dataset, data_args, pretok, tokenizer, max_length)
     return dataset
 
 
@@ -532,10 +555,12 @@ def main():
 
     datasets = load_dataset(data_args, training_args)
     data_args = setup_args(data_args, datasets)
+    pretok = setup_pretokenizer(model_args)
     tokenizer = setup_tokenizer(model_args)
 
     logger.info(f"preprocess data:")
-    processed_datasets = preprocess_dataset(datasets, data_args, tokenizer)
+    processed_datasets = preprocess_dataset(
+        datasets, data_args, pretok, tokenizer)
 
     with training_args.strategy.scope():
         if training_args.do_train:

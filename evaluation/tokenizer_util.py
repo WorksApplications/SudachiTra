@@ -1,9 +1,23 @@
 import fugashi
 import mojimoji
-from pyknp import Juman
+import pyknp
 
 
-class MecabJuman():
+class Identity():
+    is_identity = False
+
+    def __init__(self):
+        self.is_identity = True
+        return
+
+    def tokenize(self, line: str) -> str:
+        return line
+
+    def __call__(self, line: str) -> str:
+        return self.tokenize(line)
+
+
+class MecabJuman(Identity):
     def __init__(self, dicdir=None, mecabrc=None):
         # assume existance of followings (installed by `apt install mecab`)
         dicdir = dicdir or "/var/lib/mecab/dic/juman-utf8"
@@ -17,7 +31,7 @@ class MecabJuman():
         self.tagger = tagger
         return
 
-    def tokenize(self, line) -> str:
+    def tokenize(self, line: str) -> str:
         # tokenize text and
         normalized = mojimoji.han_to_zen(line).replace("\u3000", " ")
         tokens = []
@@ -28,20 +42,14 @@ class MecabJuman():
                 pass
         return " ".join(tokens)
 
-    def __call__(self, line) -> str:
-        return self.tokenize(line)
 
-
-class Juman():
+class Juman(Identity):
     def __init__(self):
         # assume Juman++ is installed (see install_jumanpp.sh)
-        self.tok = Juman()
+        self.tok = pyknp.Juman()
         return
 
-    def tokenize(self, line) -> str:
+    def tokenize(self, line: str) -> str:
         normalized = mojimoji.han_to_zen(line).replace("\u3000", " ")
         morphs = self.tok.analysis(normalized)
         return " ".join(m.midasi for m in morphs)
-
-    def __call__(self, line) -> str:
-        return self.tokenize(line)

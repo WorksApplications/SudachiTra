@@ -33,7 +33,7 @@ def setup_args(data_args, datasets):
     return data_args
 
 
-def preprocess_dataset(dataset, data_args, tokenizer, max_length):
+def preprocess_dataset(dataset, data_args, pretok, tokenizer, max_length):
     context_column = data_args.context_column
     choice_columns = data_args.choice_columns
     label_column = data_args.label_column
@@ -44,9 +44,11 @@ def preprocess_dataset(dataset, data_args, tokenizer, max_length):
         c for c in dataset[dataset_key].column_names if c != label_column]
 
     def subfunc(examples):
-        first_sentences = ([c] * n_choices for c in examples[context_column])
+        first_sentences = (
+            [pretok(c)] * n_choices for c in examples[context_column])
         first_sentences = list(it.chain(*first_sentences))
-        second_sentences = (examples[clm] for clm in choice_columns)
+        second_sentences = ([pretok(t) for t in examples[clm]]
+                            for clm in choice_columns)
         second_sentences = list(it.chain(*zip(*second_sentences)))
 
         tokenized = tokenizer(first_sentences, second_sentences,
