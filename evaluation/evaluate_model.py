@@ -385,7 +385,7 @@ def setup_config(model_args, checkpoint, data_args):
         # add label <-> id mapping
         if config.label2id is None:
             config.label2id = data_args.label2id
-            config.id2label = {i: l for l, i in data_args.label2id.items()}
+            config.id2label = {i: l for l, i in config.label2id.items()}
     else:
         config = AutoConfig.from_pretrained(config_path,)
 

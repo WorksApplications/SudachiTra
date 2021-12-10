@@ -23,7 +23,7 @@ def setup_args(data_args, datasets):
     label_list = datasets[dataset_key].unique("label")
     logger.info(f"classification task with {len(label_list)} labels.")
 
-    data_args.label_list = label_list
+    data_args.label_list = sorted(label_list)
     data_args.label2id = {l: i for i, l in enumerate(label_list)}
     return data_args
 
