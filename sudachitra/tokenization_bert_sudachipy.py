@@ -200,7 +200,7 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
         self.word_form_type = word_form_type
         if self.word_form_type == "normalized_conjugation":
             from sudachitra.normalizer_leaved_conjugation import NormalizerLeavedConjugation
-            self.nlc = NormalizerLeavedConjugation("sudachitra/resources/inflectoin_table.json", "sudachitra/resources/conjugation_type_table.json")
+            self.nlc = NormalizerLeavedConjugation("sudachitra/resources/inflection_table.json", "sudachitra/resources/conjugation_type_table.json")
 
         self.do_subword_tokenize = do_subword_tokenize
         self.subword_tokenizer_type = subword_tokenizer_type
