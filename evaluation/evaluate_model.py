@@ -90,8 +90,9 @@ class ModelArguments:
             assert self.split_unit_type is not None, "split_unit_type is required to use sudachi tokenizer"
 
         if self.pretokenizer_name is not None:
-            assert self.pretokenizer_name.lower() in ["juman", "mecab-juman"], \
-                "pretokenizer_name should be \"juman\" or \"mecab-juman\""
+            pretok_list = ["identity", "juman", "mecab-juman"]
+            assert self.pretokenizer_name.lower() in pretok_list, \
+                f"pretokenizer_name should be one of {pretok_list}"
 
 
 @dataclass
