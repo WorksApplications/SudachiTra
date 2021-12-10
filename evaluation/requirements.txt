@@ -11,11 +11,12 @@ sudachitra
 
 # util
 pytextspan
-fugashi
+mecab-python3
 mojimoji
 pyknp
 
 # tohoku-bert
+fugashi
 unidic_lite
 ipadic
 

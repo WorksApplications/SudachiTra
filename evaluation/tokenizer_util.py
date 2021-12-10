@@ -1,6 +1,7 @@
-import fugashi
+import MeCab
 import mojimoji
 import pyknp
+import unicodedata as ud
 
 
 class Identity():
@@ -24,8 +25,8 @@ class MecabJuman(Identity):
         mecabrc = mecabrc or "/etc/mecabrc"
         assert dicdir and mecabrc
 
-        tagger = fugashi.GenericTagger(f"-r {mecabrc} -d {dicdir}")
-        charset = tagger.dictionary_info[0]["charset"]
+        tagger = MeCab.Tagger(f"-r {mecabrc} -d {dicdir} -Owakati")
+        charset = tagger.dictionary_info().charset
         assert charset in ["utf-8", "utf8"]
 
         self.tagger = tagger
@@ -34,13 +35,10 @@ class MecabJuman(Identity):
     def tokenize(self, line: str) -> str:
         # tokenize text and
         normalized = mojimoji.han_to_zen(line).replace("\u3000", " ")
-        tokens = []
-        for w in self.tagger(normalized):
-            try:
-                tokens.append(w.surface)
-            except:
-                pass
-        return " ".join(tokens)
+        separated = self.tagger.parse(normalized).rstrip()
+        # rm surrogate char
+        result = "".join(ch for ch in separated if ud.category(ch) != "Cs")
+        return result
 
 
 class Juman(Identity):

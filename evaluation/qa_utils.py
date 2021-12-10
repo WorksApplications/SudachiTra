@@ -59,11 +59,19 @@ def preprocess_dataset(dataset, data_args, pretok, tokenizer, max_length):
 
         if not pretok.is_identity:
             # recalculate answer_start for pretoked contexts
-            answer_lists = examples[answer_column]  # List[List[Dict]]
+            answer_lists = examples[answer_column]  # List[Dict[str, List]]
             for i, answers in enumerate(answer_lists):
                 context = examples[context_column][i]
-                for ans in answers:
-                    ans["answer_start"] = context.index(ans["text"])
+                context_strip, offsets = zip(
+                    *[(ch, ptr) for ptr, ch in enumerate(context) if not ch.isspace()])
+                context_reconcat = "".join(context_strip)
+                for j, ans in enumerate(answers["text"]):
+                    ans = "".join(ch for ch in pretok(ans) if not ch.isspace())
+                    idx = context_reconcat.index(ans)
+                    ans_s, ans_e = offsets[idx], offsets[idx + len(ans) - 1]
+
+                    answers["answer_start"][j] = ans_s
+                    answers["text"][j] = context[ans_s:ans_e+1]
             examples[answer_column] = answer_lists
 
         return examples
