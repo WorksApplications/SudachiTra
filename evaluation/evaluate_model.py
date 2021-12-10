@@ -120,15 +120,6 @@ class DataTrainingArguments:
                                 f"Inferred from dataset_name if not set."}
     )
 
-    learning_rate_list: Optional[List[float]] = field(
-        default=None, metadata={"help": "The list of learning rate for hyper-parameter search. "
-                                "Overrides learning_rate."}
-    )
-    batch_size_list: Optional[List[int]] = field(
-        default=None, metadata={"help": "The list of training batch size for hyper-parameter search. "
-                                "Overrides per_device_train_batch_size."}
-    )
-
     max_seq_length: int = field(
         default=384,
         metadata={
@@ -233,12 +224,6 @@ def parse_args():
     parser = HfArgumentParser(
         (ModelArguments, DataTrainingArguments, TFTrainingArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-
-    # hyper parameter to search
-    if data_args.learning_rate_list is None:
-        data_args.learning_rate_list = [training_args.learning_rate]
-    if data_args.batch_size_list is None:
-        data_args.batch_size_list = [training_args.per_device_train_batch_size]
 
     return model_args, data_args, training_args
 
@@ -564,27 +549,22 @@ def main():
         datasets, data_args, pretok, tokenizer)
 
     with training_args.strategy.scope():
+        tf_datasets = convert_to_tf_datasets(
+            processed_datasets, data_args, training_args)
+
         if training_args.do_train:
             logger.info(f"finetune model:")
-            for learning_rate, batch_size in it.product(data_args.learning_rate_list, data_args.batch_size_list):
-                training_args.learning_rate = learning_rate
-                training_args.per_device_train_batch_size = batch_size
+            logger.info(f"learning_rate: {training_args.learning_rate}, "
+                        f"batch_size: {training_args.per_device_train_batch_size}")
 
+            checkpoint, done_epochs = detect_checkpoint(training_args)
+            rest_epochs = int(training_args.num_train_epochs) - done_epochs
+
+            if rest_epochs <= 0:
                 logger.info(
-                    f"learning_rate: {learning_rate}, batch_size: {batch_size}")
-
-                checkpoint, done_epochs = detect_checkpoint(training_args)
-                rest_epochs = int(training_args.num_train_epochs) - done_epochs
-                if rest_epochs <= 0:
-                    logger.info(
-                        f"saved model already trained {done_epochs} epochs. skip fine-tuning.")
-                    continue
-                if done_epochs > 0:
-                    logger.info(
-                        f"continue fine-tuning from epoch {done_epochs+1}")
-
-                tf_datasets = convert_to_tf_datasets(
-                    processed_datasets, data_args, training_args)
+                    f"saved model already trained {done_epochs} epochs. skip fine-tuning.")
+            else:
+                logger.info(f"start fine-tuning from epoch {done_epochs+1}")
 
                 config = setup_config(model_args, checkpoint, data_args)
                 model = setup_model(model_args, checkpoint,
@@ -595,34 +575,34 @@ def main():
         if training_args.do_predict:
             logger.info(f"predict with test data:")
 
-            # ok to process outside loop
-            tf_datasets = convert_to_tf_datasets(
-                processed_datasets, data_args, training_args)
+            step_keys = ["dev", "test"] if training_args.do_eval else ["test"]
+            eval_results = {k: dict() for k in step_keys}
 
-            eval_results = dict()
-            for learning_rate, batch_size, n_epoch in it.product(
-                    data_args.learning_rate_list, data_args.batch_size_list, range(int(training_args.num_train_epochs))):
-                training_args.learning_rate = learning_rate
-                training_args.per_device_train_batch_size = batch_size
-
-                dir_name = generate_output_dir_name(training_args, n_epoch+1)
-                model_path = output_root / dir_name
-                if not model_path.exists():
-                    logger.info(f"model {dir_name} does not found. "
-                                f"run with --do_train option to train model")
+            # search all directory
+            for checkpoint in output_root.glob("*"):
+                if not is_checkpoint(checkpoint):
                     continue
 
-                config = setup_config(None, model_path, data_args)
-                model = setup_model(model_args, model_path,
+                logger.info(f"checkpoint: {checkpoint}")
+                config = setup_config(None, checkpoint, data_args)
+                model = setup_model(model_args, checkpoint,
                                     config, training_args, data_args.task_type)
-                metrics = evaluate_model(
-                    model, datasets["test"], processed_datasets["test"],
-                    tf_datasets["test"], data_args, config, output_dir=model_path)
-                eval_results[dir_name] = metrics
 
-            for hp, mts in eval_results.items():
-                for key, v in mts.items():
-                    logger.info(f"{hp}, {key}: {v}")
+                for step in step_keys:
+                    metrics = evaluate_model(model,
+                                             datasets[step],
+                                             processed_datasets[step],
+                                             tf_datasets[step],
+                                             data_args,
+                                             config,
+                                             output_dir=checkpoint)
+                    eval_results[step][checkpoint.name] = metrics
+
+            for step in step_keys:
+                logger.info("evaluation result with {step} data")
+                for hp, mts in eval_results[step].items():
+                    for key, v in mts.items():
+                        logger.info(f"{hp}, {key}: {v}")
 
     return
 
