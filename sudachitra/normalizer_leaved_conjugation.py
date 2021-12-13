@@ -11,8 +11,7 @@ class NormalizerLeavedConjugation:
         self.sudachi_dict = sudachi_dict
         self.id2pos = list(enumerate(self.sudachi_dict.pos_matcher([()])))
         self.pos2id = {pos: id for (id, pos) in self.id2pos}
-        self.is_conjugative_pos = sudachi_dict.pos_matcher(lambda p: p[0] in CONJUGATIVE_POS)
-        self.is_needs_inflection = sudachi_dict.pos_matcher(lambda p: p[4] == "サ行変格" or p[5] != "終止形-一般") # 「為る->する」のため、サ行変格のみ 終止形-一般も変化
+        self.is_needs_inflection = sudachi_dict.pos_matcher(lambda p: p[0] in CONJUGATIVE_POS and (p[4] == "サ行変格" or p[5] != "終止形-一般")) # 「為る->する」のため、サ行変格のみ 終止形-一般も変化
 
         with open(inflection_table_path) as jf:
             self.infl_table = self._load_json(jf, "infl")
@@ -54,7 +53,7 @@ class NormalizerLeavedConjugation:
 
     def normalized(self, morpheme: Morpheme) -> str:
         normalized_token = morpheme.normalized_form()
-        if not self.is_conjugative_pos(morpheme) or not self.is_needs_inflection(morpheme):
+        if not self.is_needs_inflection(morpheme):
             return normalized_token
 
         pos_id = morpheme.part_of_speech_id()
