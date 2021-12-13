@@ -9,27 +9,47 @@ from sudachitra.tokenization_bert_sudachipy import CONJUGATIVE_POS
 class NormalizerLeavedConjugation:
     def __init__(self, inflection_table_path, conjugation_type_table_path, sudachi_dict: Dictionary) -> None:
         self.sudachi_dict = sudachi_dict
+        self.id2pos = list(enumerate(self.sudachi_dict.pos_matcher([()])))
+        self.pos2id = {pos: id for (id, pos) in self.id2pos}
         self.is_conjugative_pos = sudachi_dict.pos_matcher(lambda p: p[0] in CONJUGATIVE_POS)
         self.is_needs_inflection = sudachi_dict.pos_matcher(lambda p: p[4] == "サ行変格" or p[5] != "終止形-一般") # 「為る->する」のため、サ行変格のみ 終止形-一般も変化
 
         with open(inflection_table_path) as jf:
-            self.infl_table = self._load_json(jf)
+            self.infl_table = self._load_json(jf, "infl")
         with open(conjugation_type_table_path) as jf:
-            self.conj_type_table = self._load_json(jf)
+            self.conj_type_table = self._load_json(jf, "conj_type")
     
-    def _load_json(self, json_file) -> dict:
+    def _load_json(self, json_file, table_type) -> dict:
         data = json.load(json_file)
-        table = {(pos_0, *key.split("|")): convert_table for pos_0, convert_tables in data.items() for key, convert_table in convert_tables.items()}
+        table = {}
+        for pos_0, convert_tables in data.items():
+            for key, convert_table in convert_tables.items():
+                if table_type == "infl":
+                    pos_4, pos_5 = key.split("|")
+                    for pos in self.sudachi_dict.pos_matcher(lambda p: p[0] == pos_0 and p[4] == pos_4 and p[5] == pos_5):
+                        pos_id = self.pos2id[pos]
+                        table[pos_id] = convert_table
+                elif table_type == "conj_type":
+                    surface_token, reading, normalized_token, pos_4 = key.split("|")
+                    for pos in self.sudachi_dict.pos_matcher(lambda p: p[0] == pos_0 and p[4] == pos_4):
+                        pos_id = self.pos2id[pos]
+                        table[(pos_id, surface_token, reading, normalized_token)] = convert_table
+
         return table
 
-    def _change_pos(self, key, pos) -> tuple:
+    def _change_pos(self, key: tuple, pos: tuple) -> tuple:
         conj_type = self.conj_type_table[key]
-        conj_form = pos[5]
-        if (pos[0], conj_type, conj_form) not in self.infl_table:
+        res = (*pos[:4], conj_type, pos[5])
+        if res not in self.pos2id:
             conj_form = pos[5].split("-")[0] + "-一般"
-        return (*pos[:4], conj_type, conj_form)
+            res = (*pos[:4], conj_type, conj_form)
+            if res not in self.pos2id:
+                res = (pos[0], "一般", pos[2], pos[3], conj_type, conj_form)
+
+        assert res in self.pos2id
+        return res
     
-    def _is_changed_conjugation_type(self, key) -> bool:
+    def _is_changed_conjugation_type(self, key: tuple) -> bool:
         return key in self.conj_type_table
 
     def normalized(self, morpheme: Morpheme) -> str:
@@ -37,14 +57,15 @@ class NormalizerLeavedConjugation:
         if not self.is_conjugative_pos(morpheme) or not self.is_needs_inflection(morpheme):
             return normalized_token
 
-        pos = morpheme.part_of_speech()
-        conj_type_table_key = (pos[0], morpheme.surface(), morpheme.reading_form(), normalized_token, pos[4])
+        pos_id = morpheme.part_of_speech_id()
+        conj_type_table_key = (pos_id, morpheme.surface(), morpheme.reading_form(), normalized_token)
         if self._is_changed_conjugation_type(conj_type_table_key):
-            pos = self._change_pos(conj_type_table_key, pos)
-            if pos[5] != "終止形-一般":
+            pos = self._change_pos(conj_type_table_key, morpheme.part_of_speech())
+            if pos[5] == "終止形-一般":
                 return normalized_token
+            pos_id = self.pos2id[pos]
 
-        for convert_table in self.infl_table[(pos[0], pos[4], pos[5])]:
+        for convert_table in self.infl_table[pos_id]:
             if convert_table == ['', '']:
                 return normalized_token
             if normalized_token.endswith(convert_table[0]):
