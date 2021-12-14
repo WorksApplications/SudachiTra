@@ -295,7 +295,8 @@ def load_dataset(data_args, training_args):
         training_args.do_eval = data_files["validation"] is not None
         training_args.do_predict = data_files["test"] is not None
 
-    data_files = {k: str(Path(v).resolve()) for k, v in data_files.items()}
+    data_files = {k: str(Path(v).resolve())
+                  for k, v in data_files.items() if v is not None}
 
     # "csv" and "json" are valid
     dataset = hf_load_dataset(
@@ -575,7 +576,8 @@ def main():
         if training_args.do_predict:
             logger.info(f"predict with test data:")
 
-            step_keys = ["dev", "test"] if training_args.do_eval else ["test"]
+            step_keys = ["validation",
+                         "test"] if training_args.do_eval else ["test"]
             eval_results = {k: dict() for k in step_keys}
 
             # search all directory
@@ -599,7 +601,7 @@ def main():
                     eval_results[step][checkpoint.name] = metrics
 
             for step in step_keys:
-                logger.info("evaluation result with {step} data")
+                logger.info(f"evaluation result with {step} data")
                 for hp, mts in eval_results[step].items():
                     for key, v in mts.items():
                         logger.info(f"{hp}, {key}: {v}")
