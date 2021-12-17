@@ -9,27 +9,45 @@ if [ $# -lt 1 ] ; then
 fi
 DATASET=$1
 
-# need final "/"
-SCRIPT_DIR="./scripts/"
-MODEL_ROOT="./bert/"
-DATASET_ROOT="./datasets/"
-OUTPUT_ROOT="./out/"
+# rm final "/"
+MODEL_ROOT="./bert"
+DATASET_ROOT="./datasets"
+OUTPUT_ROOT="./out"
+
+# model to loop
+MODEL_NAMES=(
+  "tohoku"
+  "kyoto"
+  "nict"
+  "chitra_normalized_and_surface"
+  "chitra_normalized"
+  "chitra_surface"
+)
+
+DATASETS=("amazon" "rcqa" "kuci")
+
+# Hyperparameters from Appendix A.3, Devlin et al., 2019
+BATCHES=(16 32)
+LRS=(5e-5 3e-5 2e-5)
+# EPOCHS=(2 3 4)
+EPOCH=4
+
 
 declare -A MODEL_DIRS=(
   ["tohoku"]="cl-tohoku/bert-base-japanese-whole-word-masking"
-  ["kyoto"]="Japanese_L-12_H-768_A-12_E-30_BPE_WWM_transformers"
-  ["nict"]="NICT_BERT-base_JapaneseWikipedia_32K_BPE"
-  ["chitra_normalized_and_surface"]="Wikipedia_normalized_and_surface/phase_2"
-  ["chitra_normalized"]="Wikipedia_normalized/phase_2"
-  ["chitra_surface"]="Wikipedia_surface/phase_2"
+  ["kyoto"]="${MODEL_ROOT}/Japanese_L-12_H-768_A-12_E-30_BPE_WWM_transformers"
+  ["nict"]="${MODEL_ROOT}/NICT_BERT-base_JapaneseWikipedia_32K_BPE"
+  ["chitra_normalized_and_surface"]="${MODEL_ROOT}/Wikipedia_normalized_and_surface/phase_2"
+  ["chitra_normalized"]="${MODEL_ROOT}/Wikipedia_normalized/phase_2"
+  ["chitra_surface"]="${MODEL_ROOT}/Wikipedia_surface/phase_2"
 )
 
 function set_model_args() {
   MODEL=$1
   DATASET=$2
-  MODEL_DIR="${MODEL_ROOT}${MODEL_DIRS[$1]}"
-  DATASET_DIR="${DATASET_ROOT}${DATASET}"
-  OUTPUT_DIR="${OUTPUT_ROOT}${MODEL}_${DATASET}"
+  MODEL_DIR="${MODEL_DIRS[$1]}"
+  DATASET_DIR="${DATASET_ROOT}/${DATASET}"
+  OUTPUT_DIR="${OUTPUT_ROOT}/${MODEL}_${DATASET}"
   export MODEL DATASET MODEL_DIR DATASET_DIR OUTPUT_DIR
 
   # whether if we load the model from pytorch param
@@ -64,14 +82,6 @@ function set_model_args() {
   export TOKENIZER WORD_TYPE UNIT_TYPE SUDACHI_VOCAB
 }
 
-DATASETS=("amazon" "rcqa" "kuci")
-
-# Hyperparameters from Appendix A.3, Devlin et al., 2019
-BATCHES=(16 32)
-LRS=(5e-5 3e-5 2e-5)
-# EPOCHS=(2 3 4)
-EPOCH=4
-
 command='( \
   python ${SCRIPT_DIR}evaluate_model.py \
     --model_name_or_path          ${MODEL} \
@@ -90,6 +100,9 @@ command='( \
     --per_device_train_batch_size ${BATCH} \
     --learning_rate               ${LR} \
     --num_train_epochs            ${EPOCH} \
+    # --max_train_samples           100 \
+    # --max_val_samples             100 \
+    # --max_test_samples            100 \
 )'
 
 command_echo='( echo \
@@ -102,8 +115,11 @@ command_echo='( echo \
 mkdir -p logs
 /bin/true > logs/jobs.txt
 
+echo "remove huggingface datasets cache file"
+rm $HOME/.cache/huggingface/datasets/ -rf
+
 echo "start loop"
-for MODEL in ${!MODEL_DIRS[@]}; do
+for MODEL in ${MODEL_NAMES[@]}; do
   for BATCH in ${BATCHES[@]}; do
     for LR in ${LRS[@]}; do
       export MODEL BATCH LR EPOCH
