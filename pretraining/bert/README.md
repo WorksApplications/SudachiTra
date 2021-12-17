@@ -47,7 +47,7 @@ $ ./run_prepare_dataset.sh
 
 Some sentences in the downloaded corpus are too short or too long to have much impact on learning.
 There are also documents that are too short or contain inappropriate words.
-To filter out such sentences and documents, use the [`prepare_dataset.py`](preprocess_dataset.py) script.
+To filter out such sentences and documents, use the [`preprocess_dataset.py`](preprocess_dataset.py) script.
 In addition to the cleaning process, this script also performs the sentence-level and document-level normalization process.
 
 Example script to apply all cleaning and normalization processes.
