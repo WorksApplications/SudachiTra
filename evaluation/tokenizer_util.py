@@ -19,6 +19,7 @@ class Identity():
 
 
 class MecabJuman(Identity):
+    # tokenization for NICT BERT
     def __init__(self, dicdir=None, mecabrc=None):
         # assume existance of followings (installed by `apt install mecab`)
         dicdir = dicdir or "/var/lib/mecab/dic/juman-utf8"
@@ -42,6 +43,7 @@ class MecabJuman(Identity):
 
 
 class Juman(Identity):
+    # tokenization for Kyoto-U BERT
     def __init__(self):
         # assume Juman++ is installed (see install_jumanpp.sh)
         self.tok = pyknp.Juman()

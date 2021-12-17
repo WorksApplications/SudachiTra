@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict
 
 from datasets import load_dataset, Dataset, DatasetDict
+import tokenizer_util
 
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,8 @@ def convert_amazon(args):
             "star_rating": "label",
         })
 
+    datadict = tokenize_text(datadict, args.tokenizer, [
+                             "sentence1"], args.dicdir, args.mecabrc)
     return datadict
 
 
@@ -105,6 +108,8 @@ def convert_kuci(args):
     datadict = datadict.map(convert, batched=True,
                             remove_columns=[f"choice_{a}" for a in a2i.keys()])
 
+    datadict = tokenize_text(datadict, args.tokenizer, [
+                             f"choice_{i}" for i in a2i.values()] + ["context"], args.dicdir, args.mecabrc)
     return datadict
 
 
@@ -153,30 +158,74 @@ def convert_rcqa(args):
         return outputs
     datadict = datadict.map(flatten_doc, batched=True).flatten()
 
+    datadict = tokenize_text(datadict, args.tokenizer, [
+                             "question", "documents.text", "answer"], args.dicdir, args.mecabrc)
+
     for key in datadict:
-        logger.info(f"data count for {key} split: {len(datadict[key])}")
+        logger.info(
+            f"data count for {key} split (before flatten): {len(datadict[key])}")
 
     # arrange data structure following the squad_v2 dataset in HF-hub
     def convert(example):
         qid = f'{example["qid"]}{example["doc_id"]:04d}'
         is_impossible = example["documents.score"] < 2
         if not is_impossible:
-            answer_start = example["documents.text"].index(example["answer"])
+            answer = example["answer"]
+            if args.tokenizer is not None:
+                # search answer span in the tokenized context
+                answer = "".join(ch for ch in answer if not ch.isspace())
+                context = example["documents.text"]
+                context_strip, offsets = zip(
+                    *[(ch, ptr) for ptr, ch in enumerate(context) if not ch.isspace()])
+                idx = "".join(context_strip).index(answer)
+                answer_start, answer_end = offsets[idx], offsets[idx + len(
+                    answer) - 1]
+                answer = context[answer_start:answer_end + 1]
+            else:
+                answer_start = example["documents.text"].index(answer)
+
         return {
             "id": qid,
             "title": qid,
             "context": example["documents.text"],
             "question": example["question"],
-            "answers": {"text": [example["answer"]] if not is_impossible else [],
+            "answers": {"text": [answer] if not is_impossible else [],
                         "answer_start": [answer_start] if not is_impossible else [], },
         }
     datadict = datadict.map(
         convert, remove_columns=datadict["train"].column_names)
 
+    for key in datadict:
+        logger.info(
+            f"data count for {key} split (after flatten): {len(datadict[key])}")
+
     return datadict
 
 
-def select_column(datadict: DatasetDict, rename_map: Dict[str, str]):
+def tokenize_text(datadict: DatasetDict, tokenizer: str, target_columns, dicdir=None, mecabrc=None) -> DatasetDict:
+    if tokenizer is None:
+        logger.info("keep texts as is.")
+        return datadict
+    elif tokenizer == "juman":
+        logger.info("split text using Juman++")
+        tok = tokenizer_util.Juman()
+    elif tokenizer == "mecab":
+        logger.info(
+            f"split text using MeCab (dicdir: {dicdir}, rc: {mecabrc})")
+        tok = tokenizer_util.MecabJuman(dicdir, mecabrc)
+    else:
+        raise ValueError(f"Unknown tokenizer: {tokenizer}")
+
+    def convert(examples):
+        for clm in target_columns:
+            examples[clm] = [tok(t) for t in examples[clm]]
+        return examples
+
+    datadict = datadict.map(convert, batched=True)
+    return datadict
+
+
+def select_column(datadict: DatasetDict, rename_map: Dict[str, str]) -> DatasetDict:
     # assume there is train dataset
     column_names = datadict["train"].column_names
 
@@ -189,7 +238,7 @@ def select_column(datadict: DatasetDict, rename_map: Dict[str, str]):
     return datadict
 
 
-def shuffle_dataset(dataset: Dataset, seed=None):
+def shuffle_dataset(dataset: Dataset, seed=None) -> Dataset:
     # shuffle if seed is given
     if seed is not None:
         logger.info(f"shuffle data with seed {seed}.")
@@ -239,6 +288,10 @@ def split_dataset(dataset: Dataset, split_rate_str: str):
     return datadict
 
 
+def construct_output_filepath(output_dir: Path, filename: str, output_format: str):
+    return output_dir / f"{filename}.{output_format}"
+
+
 def save_datasets(datadict, output_dir, output_format):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -247,7 +300,7 @@ def save_datasets(datadict, output_dir, output_format):
         if key not in datadict:
             continue
 
-        out_file = output_dir / f"{key}.{output_format}"
+        out_file = construct_output_filepath(output_dir, key, output_format)
         if output_format == "csv":
             datadict[key].to_csv(out_file, index=False)
         elif output_format == "json":
@@ -261,6 +314,7 @@ CONVERT_FUNCS = {
     "kuci": convert_kuci,
     "rcqa": convert_rcqa,
 }
+TOKENIZER_NAMES = ["juman", "mecab"]
 OUTPUT_FORMATS = ["csv", "json"]
 
 
@@ -273,49 +327,70 @@ def parse_args():
                         help="Raw data file or directory contains it.")
     parser.add_argument("-o", "--output", dest="output_dir", type=str, default="./output",
                         help="Output directory.")
+    parser.add_argument("-t", "--tokenizer", type=str, default=None,
+                        help=f"Tokenizer to split texts (wakati). Output raw texts if not set. "
+                        "One of {TOKENIZER_NAMES}.")
     parser.add_argument("-s", "--seed", type=int,
                         help="Random seed for shuffle. DO NOT shuffle if not set.")
     parser.add_argument("-r", "--split-rate", type=str,
                         help="Split rate for train/validation/test data. "
                         "By default use dataset specific split if exists, 8/1/1 otherwise.")
     parser.add_argument("-f", "--output-format", type=str, default="json",
-                        help="Output data format. csv or json. json by defaul.")
+                        help="Output data format. json by default.")
 
     parser.add_argument("--overwrite", action="store_true",
                         help="Overwrite output files when they already exist.")
+    parser.add_argument("--dicdir", type=str, default=None,
+                        help="dicdir for mecab tokenizer.")
+    parser.add_argument("--mecabrc", type=str, default=None,
+                        help="mecabrc for mecab tokenizer.")
 
     args = parser.parse_args()
     args.dataset_name = args.dataset_name.lower()
+    if args.tokenizer is not None:
+        args.tokenizer = args.tokenizer.lower()
+    args.output_dir = Path(args.output_dir)
+    args.output_format = args.output_format.lower()
     return args
+
+
+def validate_args(args):
+    if args.dataset_name not in CONVERT_FUNCS and args.dataset_name != "list":
+        logger.error(f"Unknown dataset name ({args.dataset_name}). "
+                     f"It must be one of {list(CONVERT_FUNCS.keys())} or \"list\".")
+        raise ValueError
+
+    if args.tokenizer is not None and args.tokenizer not in TOKENIZER_NAMES:
+        logger.error(f"Unknown tokenizer ({args.tokenizer}). "
+                     f"It must be one of {TOKENIZER_NAMES}.")
+        raise ValueError
+
+    if args.output_format not in OUTPUT_FORMATS:
+        logger.error(f"Unknown dataset name ({args.output_format}). "
+                     f"It must be one of {OUTPUT_FORMATS}.")
+        raise ValueError
+
+    if not args.overwrite:
+        for key in ("train", "dev", "test"):
+            out_file = construct_output_filepath(
+                args.output_dir, key, args.output_format)
+            if out_file.exists():
+                logger.error(
+                    f"File {out_file} already exists. Set --overwrite to continue anyway.")
+                raise ValueError
+    return
 
 
 def main():
     args = parse_args()
+    validate_args(args)
 
     if args.dataset_name == "list":
         logger.info(f"Available datasets: {list(CONVERT_FUNCS.keys())}")
         return
 
-    # check
-    if args.dataset_name not in CONVERT_FUNCS:
-        logger.error(f"Unknown dataset name ({args.dataset_name}). "
-                     f"It must be one of {list(CONVERT_FUNCS.keys())} or \"list\"")
-        return
-    if args.output_format not in OUTPUT_FORMATS:
-        logger.error(f"Unknown dataset name ({args.output_format}). "
-                     f"It must be one of {OUTPUT_FORMATS}")
-        return
-    if not args.overwrite:
-        for key in ("train", "dev", "test"):
-            out_file = Path(args.output_dir) / f"{key}.{args.output_format}"
-            if out_file.exists():
-                logger.error(
-                    f"File {out_file} already exists. Set --overwrite to continue anyway.")
-                return
-
     convert_func = CONVERT_FUNCS[args.dataset_name]
     datadict = convert_func(args)
-
     save_datasets(datadict, args.output_dir, args.output_format)
     return
 
