@@ -21,6 +21,17 @@ from sudachitra.tokenization_bert_sudachipy import CONJUGATIVE_POS
 
 class NormalizerLeavedConjugation:
     def __init__(self, inflection_table_path, conjugation_type_table_path, sudachi_dict: Dictionary) -> None:
+        """
+        Constructs a NormalizerLeavedConjugation.
+
+        Args:
+            inflection_table_path (:obj:`str`):
+                In this table, get the difference between the inflected form to the end form each conjugation.
+            conjugation_type_table_path (:obj:`str`):
+                In this table, the conjugation types such as potential verb that change due to the normalization of the Sudachi dictionary are stored in blacklist format.
+            sudachi_dict (:obj:`Dictionary`):
+                dictionary instance.
+        """
         self.sudachi_dict = sudachi_dict
         self.id2pos = list(enumerate(self.sudachi_dict.pos_matcher([()])))
         self.pos2id = {pos: id for (id, pos) in self.id2pos}
@@ -32,6 +43,20 @@ class NormalizerLeavedConjugation:
             self.conj_type_table = self._load_json(jf, "conj_type")
     
     def _load_json(self, json_file, table_type) -> dict:
+        """
+        Convert json to python file when loading.
+
+        Args:
+            json_file (:obj:`TextIOWrapper`):
+                json file object.
+            table_type (:obj:`str`):
+                Select "infl" or "conj_type" and load in each format.
+
+        Returns:
+            Dict:
+                infl: Key of int and Inflection table of list.
+                conj_type: Key of tuple and Conjugation type conversion destination of str.
+        """
         data = json.load(json_file)
         table = {}
         for pos_0, convert_tables in data.items():
@@ -50,6 +75,16 @@ class NormalizerLeavedConjugation:
         return table
 
     def _change_pos(self, key: tuple, pos: tuple) -> tuple:
+        """
+        Make conjugation-type changes. If the part of speech does not exist after the change, it will be grouped into "一般". (Example: 撥音便, etc.)
+
+        Args:
+            key (:obj:`tuple`): (pos_id, surface, reading_form, normalized_form)
+            pos (:obj:`tuple`): Get the part of speech.
+
+        Returns:
+            tuple: Changed part of speech
+        """
         conj_type = self.conj_type_table[key]
         res = (*pos[:4], conj_type, pos[5])
         if res not in self.pos2id:
@@ -62,9 +97,26 @@ class NormalizerLeavedConjugation:
         return res
     
     def _is_changed_conjugation_type(self, key: tuple) -> bool:
+        """
+        Check if the conjugation type changes after being normalized.
+
+        Args:
+            key (:obj:`tuple`): (pos_id, surface, reading_form, normalized_form)
+
+        Returns: bool
+        """
         return key in self.conj_type_table
 
     def normalized(self, morpheme: Morpheme) -> str:
+        """
+        The output token retain conjugation information in word normalization by Sudachi tokenizer
+
+        Args:
+            morpheme (:obj:`Morpheme`): Receives the results of morphological analysis.
+
+        Returns:
+            str: Normalized token with conjugate information retained.
+        """
         normalized_token = morpheme.normalized_form()
         if not self.is_needs_inflection(morpheme):
             return normalized_token
