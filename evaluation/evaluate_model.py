@@ -580,8 +580,8 @@ def main():
                          "test"] if training_args.do_eval else ["test"]
             eval_results = {k: dict() for k in step_keys}
 
-            # search all directory
-            for checkpoint in output_root.glob("*"):
+            pref = generate_output_dir_name(training_args)
+            for checkpoint in output_root.glob(f"{pref}*"):
                 if not is_checkpoint(checkpoint):
                     continue
 
@@ -600,7 +600,7 @@ def main():
                                              output_dir=checkpoint)
                     eval_results[step][checkpoint.name] = metrics
 
-            for step in step_keys:
+            for step in eval_results:
                 logger.info(f"evaluation result with {step} data")
                 for hp, mts in eval_results[step].items():
                     for key, v in mts.items():
