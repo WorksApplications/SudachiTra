@@ -82,7 +82,14 @@ function set_model_args() {
   export TOKENIZER WORD_TYPE UNIT_TYPE SUDACHI_VOCAB
 }
 
-command='( \
+command_echo='( echo \
+  "${MODEL}, ${DATASET}, ${MODEL_DIR}, ${DATASET_DIR}, ${OUTPUT_DIR}, " \
+  "${FROM_PT}, ${PRETOKENIZER}, " \
+  "${TOKENIZER}, ${WORD_TYPE}, ${UNIT_TYPE}, ${SUDACHI_VOCAB}, " \
+  "${BATCH}, ${LR}, ${EPOCH}, " \
+)'
+
+command_train='( \
   python ${SCRIPT_DIR}evaluate_model.py \
     --model_name_or_path          ${MODEL} \
     --from_pt                     ${FROM_PT} \
@@ -105,27 +112,38 @@ command='( \
     # --max_test_samples            100 \
 )'
 
-command_echo='( echo \
-  "${MODEL}, ${DATASET}, ${MODEL_DIR}, ${DATASET_DIR}, ${OUTPUT_DIR}, " \
-  "${FROM_PT}, ${PRETOKENIZER}, " \
-  "${TOKENIZER}, ${WORD_TYPE}, ${UNIT_TYPE}, ${SUDACHI_VOCAB}, " \
-  "${BATCH}, ${LR}, ${EPOCH}, " \
+command_eval='( \
+  python ${SCRIPT_DIR}evaluate_model.py \
+    --model_name_or_path          ${MODEL} \
+    --pretokenizer_name           ${PRETOKENIZER} \
+    --tokenizer_name              ${TOKENIZER} \
+    --word_form_type              ${WORD_TYPE} \
+    --split_unit_type             ${UNIT_TYPE} \
+    --sudachi_vocab_file          ${SUDACHI_VOCAB} \
+    --dataset_name                ${DATASET} \
+    --dataset_dir                 ${DATASET_DIR} \
+    --output_dir                  ${OUTPUT_DIR} \
+    --do_eval                     \
+    --do_predict                  \
+    --per_device_eval_batch_size  64 \
 )'
+
 
 mkdir -p logs
 /bin/true > logs/jobs.txt
 
-echo "remove huggingface datasets cache file"
-rm $HOME/.cache/huggingface/datasets/ -rf
-
 echo "start loop"
 for MODEL in ${MODEL_NAMES[@]}; do
+  echo "remove huggingface datasets cache file"
+  rm $HOME/.cache/huggingface/datasets/ -rf
+
   for BATCH in ${BATCHES[@]}; do
     for LR in ${LRS[@]}; do
       export MODEL BATCH LR EPOCH
       set_model_args ${MODEL} ${DATASET}
       script -c "${command_echo}"
-      script -c "${command}" logs/${MODEL}_batch${BATCH}_lr${LR}_epochs${EPOCH}.log
+      script -c "${command_train}" logs/${MODEL}_batch${BATCH}_lr${LR}_epochs${EPOCH}.log
+      script -c "${command_eval}" logs/${MODEL}_batch${BATCH}_lr${LR}_epochs${EPOCH}_eval.log
     done
   done
 done
