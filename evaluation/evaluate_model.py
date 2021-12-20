@@ -498,19 +498,19 @@ def finetune_model(model, tf_datasets, data_args, training_args, done_epochs):
     return model
 
 
-def evaluate_model(model, dataset, processed_dataset, tf_dataset, data_args, config, output_dir):
+def evaluate_model(model, dataset, processed_dataset, tf_dataset, data_args, config, output_dir, stage="test"):
     if data_args.task_type == TaskType.CLASSIFICATION:
         label2id = config.label2id or data_args.label2id
         metrics = classification_utils.evaluate_model(
-            model, processed_dataset, tf_dataset, label2id, output_dir)
+            model, processed_dataset, tf_dataset, label2id, output_dir, stage=stage)
 
     elif data_args.task_type == TaskType.MULTIPLE_CHOICE:
         metrics = multiple_choice_utils.evaluate_model(
-            model, tf_dataset, output_dir)
+            model, processed_dataset, tf_dataset, output_dir, stage=stage)
 
     elif data_args.task_type == TaskType.QA:
         metrics = qa_utils.evaluate_model(
-            model, dataset, processed_dataset, data_args, output_dir)
+            model, dataset, processed_dataset, data_args, output_dir, stage=stage)
 
     else:
         raise NotImplementedError(f"task type: {data_args.task_type}.")
@@ -597,7 +597,8 @@ def main():
                                              tf_datasets[step],
                                              data_args,
                                              config,
-                                             output_dir=checkpoint)
+                                             output_dir=checkpoint,
+                                             stage=step)
                     eval_results[step][checkpoint.name] = metrics
 
             for step in eval_results:

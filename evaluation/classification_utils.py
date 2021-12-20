@@ -133,7 +133,7 @@ def setup_model(model_name_or_path, config, training_args, from_pt=False):
     return model
 
 
-def evaluate_model(model, processed_dataset, tf_dataset, label2id, output_dir=None):
+def evaluate_model(model, processed_dataset, tf_dataset, label2id, output_dir=None, stage="eval"):
     predictions = model.predict(tf_dataset)["logits"]
     predicted_class = np.argmax(predictions, axis=1)
 
@@ -143,11 +143,12 @@ def evaluate_model(model, processed_dataset, tf_dataset, label2id, output_dir=No
 
     if output_dir is not None:
         id2label = {i: l for l, i in label2id.items()}
-        output_file = output_dir / "test_results.txt"
+        output_file = output_dir / f"{stage}_results.tsv"
         with open(output_file, "w") as writer:
-            writer.write("index\tprediction\n")
-            for index, item in enumerate(predicted_class):
+            writer.write("index\tlabel\tprediction\n")
+            for index, (label, item) in enumerate(zip(labels, predicted_class)):
+                label = id2label[label]
                 item = id2label[item]
-                writer.write(f"{index}\t{item}\n")
+                writer.write(f"{index}\t{label}\t{item}\n")
 
     return metrics

@@ -57,6 +57,8 @@ def preprocess_dataset(dataset, data_args, pretok, tokenizer, max_length):
         # un-flatten
         data = {k: [v[i:i+n_choices] for i in range(0, len(v), n_choices)]
                 for k, v in tokenized.items()}
+
+        # keep label column as it is, assuming it contains 0-indexed integer
         return data
 
     dataset = dataset.map(subfunc, batched=True, remove_columns=data_columns)
@@ -135,17 +137,18 @@ def setup_model(model_name_or_path, config, training_args, from_pt=False):
     return model
 
 
-def evaluate_model(model, tf_dataset, output_dir=None):
+def evaluate_model(model, processed_dataset, tf_dataset, output_dir=None, stage="eval"):
     metrics = model.evaluate(tf_dataset, return_dict=True)
+    labels = processed_dataset["label"]
 
     if output_dir is not None:
         predictions = model.predict(tf_dataset)["logits"]
         predicted_class = np.argmax(predictions, axis=1)
 
-        output_file = output_dir / "test_results.txt"
+        output_file = output_dir / f"{stage}_results.tsv"
         with open(output_file, "w") as writer:
-            writer.write("index\tprediction\n")
-            for index, item in enumerate(predicted_class):
-                writer.write(f"{index}\t{item}\n")
+            writer.write("index\tlabel\tprediction\n")
+            for index, (label, item) in enumerate(zip(labels, predicted_class)):
+                writer.write(f"{index}\t{label}\t{item}\n")
 
     return metrics
