@@ -196,6 +196,30 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
             ["Apple", "や", "Apple", "の", "辞書", "形", "は", "Apple", "で", "正規", "形", "は", "アップル", "で", "ある", "。"]
         )
 
+    def test_sudachipy_tokenizer_normalized_form_leaved_conjugation(self):
+        tokenizer = self.tokenizer_class(self.vocab_file, do_subword_tokenize=False,
+                                         word_form_type='normalized_conjugation')
+
+        self.assertListEqual(
+            tokenizer.tokenize("appleの辞書形はAppleで正規形はアップルである。"),
+            ["アップル", "の", "辞書", "形", "は", "アップル", "で", "正規", "形", "は", "アップル", "で", "有る", "。"]
+        )
+
+    def test_sudachipy_tokenizer_normalized_form_leaved_conjugation_can_do(self):
+        tokenizer = self.tokenizer_class(self.vocab_file, do_subword_tokenize=False,
+                                         word_form_type='normalized_conjugation', sudachipy_kwargs={"split_mode": "C"})
+
+        self.assertListEqual(
+            tokenizer.tokenize("畳み込めたので大丈夫です。"),
+            ["畳み込み", "た", "の", "で", "大丈夫", "です", "。"]
+        )
+
+        self.assertListEqual(
+            tokenizer.tokenize("泳げます。"),
+            ["泳ぎ", "ます", "。"]
+        )
+
+
     def test_sudachipy_tokenizer_unit_a(self):
         try:
             tokenizer = SudachipyWordTokenizer(split_mode="A")

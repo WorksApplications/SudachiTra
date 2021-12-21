@@ -31,7 +31,7 @@ setup(
         "progressbar2~=3.53.1",
         "tokenizers>=0.10.3",
         "transformers>=4.6.1",
-        "sudachipy>=0.6.0",
+        "sudachipy>=0.6.2",
         "sudachidict_core>=20210802"
     ],
     include_package_data=True
