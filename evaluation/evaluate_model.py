@@ -378,7 +378,25 @@ def setup_config(model_args, checkpoint, data_args):
     return config
 
 
-def preprocess_dataset(dataset, data_args, pretok, tokenizer):
+def tokenize_texts(task_type, datadict, model_args, data_args):
+    pretok = setup_pretokenizer(model_args)
+    if pretok.is_identity:
+        return datadict
+
+    subfunc = {
+        TaskType.CLASSIFICATION: classification_utils.tokenize_texts,
+        TaskType.MULTIPLE_CHOICE: multiple_choice_utils.tokenize_texts,
+        TaskType.QA: qa_utils.tokenize_texts,
+    }.get(task_type, None)
+
+    if subfunc is None:
+        raise NotImplementedError(f"task type: {task_type}")
+
+    datadict = subfunc(datadict, pretok, data_args)
+    return datadict
+
+
+def preprocess_dataset(dataset, data_args, tokenizer):
     # limit number of samples if specified
     max_samples = {
         "train": data_args.max_train_samples,
@@ -404,7 +422,7 @@ def preprocess_dataset(dataset, data_args, pretok, tokenizer):
     if subfunc is None:
         raise NotImplementedError(f"task type: {data_args.task_type}.")
 
-    dataset = subfunc(dataset, data_args, pretok, tokenizer, max_length)
+    dataset = subfunc(dataset, data_args, tokenizer, max_length)
     return dataset
 
 
@@ -535,6 +553,7 @@ def main():
         return
 
     set_seed(training_args.seed)
+    task_type = data_args.task_type
 
     logger.info(f"load components:")
     output_root = Path(training_args.output_dir)
@@ -542,12 +561,11 @@ def main():
 
     datasets = load_dataset(data_args, training_args)
     data_args = setup_args(data_args, datasets)
-    pretok = setup_pretokenizer(model_args)
     tokenizer = setup_tokenizer(model_args)
 
     logger.info(f"preprocess data:")
-    processed_datasets = preprocess_dataset(
-        datasets, data_args, pretok, tokenizer)
+    datasets = tokenize_texts(task_type, datasets, model_args, data_args)
+    processed_datasets = preprocess_dataset(datasets, data_args, tokenizer)
 
     with training_args.strategy.scope():
         tf_datasets = convert_to_tf_datasets(

@@ -18,21 +18,17 @@ logger.setLevel(logging.INFO)
 
 
 def setup_args(data_args, datasets):
-    # num_label is neccessary to initialize model
+    # num_label to initialize model
     dataset_key = list(datasets.keys())[0]  # at least one data file exists
     label_list = datasets[dataset_key].unique("label")
     logger.info(f"classification task with {len(label_list)} labels.")
 
     data_args.label_list = sorted(label_list)
     data_args.label2id = {l: i for i, l in enumerate(label_list)}
-    return data_args
 
-
-def preprocess_dataset(dataset, data_args, pretok, tokenizer, max_length):
-    # select columns to tokenize
-    dataset_name = list(dataset.keys())[0]
+    # columns of input text
     data_columns = [
-        c for c in dataset[dataset_name].column_names if c != "label"]
+        c for c in datasets[dataset_key].column_names if c != "label"]
     if "sentence1" in data_columns:
         if "sentence2" in data_columns:
             column_names = ["sentence1", "sentence2"]
@@ -40,15 +36,29 @@ def preprocess_dataset(dataset, data_args, pretok, tokenizer, max_length):
             column_names = ["sentence1"]
     else:
         column_names = data_columns[:2]
+    data_args.column_names = column_names
+    return data_args
 
+
+def tokenize_texts(datadict, pretok, data_args):
+    def subfunc(examples):
+        for c in data_args.column_names:
+            examples[c] = [pretok(s) for s in examples[c]]
+        return examples
+
+    datadict = datadict.map(subfunc, batched=True)
+    return datadict
+
+
+def preprocess_dataset(dataset, data_args, tokenizer, max_length):
     # Truncate text before tokenization for sudachi, which has a input bytes limit.
     # This may affect the result with a large max_length (tokens).
     MAX_CHAR_LENGTH = 2**14
 
     def subfunc(examples):
         # Tokenize texts
-        texts = ([pretok(s[:MAX_CHAR_LENGTH]) for s in examples[c]]
-                 for c in column_names)
+        texts = ([s[:MAX_CHAR_LENGTH] for s in examples[c]]
+                 for c in data_args.column_names)
         result = tokenizer(*texts, max_length=max_length, truncation=True)
 
         # Map labels to ids
@@ -57,7 +67,8 @@ def preprocess_dataset(dataset, data_args, pretok, tokenizer, max_length):
                 (data_args.label2id[l] if l != -1 else -1) for l in examples["label"]]
         return result
 
-    dataset = dataset.map(subfunc, batched=True, remove_columns=data_columns)
+    dataset = dataset.map(subfunc, batched=True,
+                          remove_columns=data_args.data_columns)
     return dataset
 
 

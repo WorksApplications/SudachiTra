@@ -39,7 +39,40 @@ def setup_args(data_args, datasets):
     return data_args
 
 
-def preprocess_dataset(dataset, data_args, pretok, tokenizer, max_length):
+def tokenize_texts(datadict, pretok, data_args):
+    question_column = data_args.question_column
+    context_column = data_args.context_column
+    answer_column = data_args.answer_column
+
+    def subfunc(examples):
+        examples[question_column] = [
+            pretok(q.lstrip()) for q in examples[question_column]]
+        examples[context_column] = [
+            pretok(c) for c in examples[context_column]]
+
+        if not pretok.is_identity:
+            # recalculate answer_start for pretoked contexts
+            answer_lists = []  # List[Dict[str, List]]
+            for context, answers in zip(examples[context_column], examples[answer_column]):
+                answer_lists.append({"text": [], "answer_start": []})
+                context_strip, offsets = zip(
+                    *[(ch, ptr) for ptr, ch in enumerate(context) if not ch.isspace()])
+                context_reconcat = "".join(context_strip)
+                for ans in answers["text"]:
+                    ans = "".join(ch for ch in pretok(ans) if not ch.isspace())
+                    idx = context_reconcat.index(ans)
+                    ans_s, ans_e = offsets[idx], offsets[idx + len(ans) - 1]
+                    answer_lists[-1]["text"].append(context[ans_s:ans_e+1])
+                    answer_lists[-1]["answer_start"].append(ans_s)
+            examples[answer_column] = answer_lists
+
+        return examples
+
+    datadict = datadict.map(subfunc, batched=True)
+    return datadict
+
+
+def preprocess_dataset(dataset, data_args, tokenizer, max_length):
     question_column = data_args.question_column
     context_column = data_args.context_column
     answer_column = data_args.answer_column
@@ -50,31 +83,6 @@ def preprocess_dataset(dataset, data_args, pretok, tokenizer, max_length):
     else:
         logger.info(
             f"The tokenizer is not PreTrainedTokenizerFast. We will mimic some its features.")
-
-    def subfunc_pretok(examples):
-        examples[question_column] = [
-            pretok(q.lstrip()) for q in examples[question_column]]
-        examples[context_column] = [
-            pretok(c) for c in examples[context_column]]
-
-        if not pretok.is_identity:
-            # recalculate answer_start for pretoked contexts
-            answer_lists = examples[answer_column]  # List[Dict[str, List]]
-            for i, answers in enumerate(answer_lists):
-                context = examples[context_column][i]
-                context_strip, offsets = zip(
-                    *[(ch, ptr) for ptr, ch in enumerate(context) if not ch.isspace()])
-                context_reconcat = "".join(context_strip)
-                for j, ans in enumerate(answers["text"]):
-                    ans = "".join(ch for ch in pretok(ans) if not ch.isspace())
-                    idx = context_reconcat.index(ans)
-                    ans_s, ans_e = offsets[idx], offsets[idx + len(ans) - 1]
-
-                    answers["answer_start"][j] = ans_s
-                    answers["text"][j] = context[ans_s:ans_e+1]
-            examples[answer_column] = answer_lists
-
-        return examples
 
     def subfunc_train(examples):
         # strip question
@@ -174,6 +182,7 @@ def preprocess_dataset(dataset, data_args, pretok, tokenizer, max_length):
         # mapping from each tokens to their span in the original text
         if "offset_mapping" not in result:
             # construct manually, since offset_mapping is not available for PreTrainedTokenizer
+            logger.info("construct offset_mapping")
             result["offset_mapping"] = _construct_offset_mapping(
                 examples[question_column], examples[context_column], result, tokenizer)
 
@@ -197,8 +206,6 @@ def preprocess_dataset(dataset, data_args, pretok, tokenizer, max_length):
 
     dataset_name = list(dataset.keys())[0]
     column_names = dataset[dataset_name].column_names
-
-    dataset = dataset.map(subfunc_pretok, batched=True)
 
     processed = {}
     for key, subfunc in (("train", subfunc_train), ("validation", subfunc_test), ("test", subfunc_test)):
@@ -355,6 +362,7 @@ def evaluate_model(model, dataset, processed_dataset, data_args, output_dir=None
 
 
 def _post_processing_function(data_args, examples, features, predictions, output_dir=None, stage="eval"):
+    # This function is taken from HuggingFace transformers example code
     # Post-processing: we match the start logits and end logits to answers in the original context.
     predictions = _postprocess_qa_predictions(
         examples=examples,
@@ -518,9 +526,9 @@ def _postprocess_qa_predictions(
             all_predictions[example["id"]] = predictions[0]["text"]
         else:
             # Otherwise we first need to find the best non-empty prediction.
-            i = 0
-            while predictions[i]["text"] == "":
-                i += 1
+            for i in range(len(predictions)):
+                if predictions[i]["text"] != "":
+                    break
             best_non_null_pred = predictions[i]
 
             # Then we compare to the null prediction using the threshold.
