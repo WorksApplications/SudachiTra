@@ -165,9 +165,9 @@ def main():
 
 def get_args():
     parser = argparse.ArgumentParser(description='Cleaning and corpus_preprocessing dataset.')
-    parser.add_argument('-i', '--input_dataset_path',
+    parser.add_argument('-i', '--input_dataset_path', required=True,
                         help='Input dataset.')
-    parser.add_argument('-o', '--output_dataset_path',
+    parser.add_argument('-o', '--output_dataset_path', required=True,
                         help='Output dataset.')
 
     # Sentence filters
