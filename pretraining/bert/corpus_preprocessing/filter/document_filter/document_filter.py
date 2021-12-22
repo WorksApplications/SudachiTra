@@ -14,7 +14,7 @@
 
 import re
 from re import Match
-from sudachipy import dictionary, tokenizer
+from sudachipy import Dictionary, SplitMode
 from typing import List, TypeVar
 
 
@@ -100,8 +100,8 @@ class ShortDocumentFilter(DocumentFilter):
 
 
 class NGWordsFilter(DocumentFilter):
-    SPLIT_MODE = tokenizer.Tokenizer.SplitMode.A
     DICT_TYPE = 'core'
+    SPLIT_MODE = SplitMode.A
 
     def __init__(self, ng_words_file_path: str):
         """
@@ -115,7 +115,7 @@ class NGWordsFilter(DocumentFilter):
             ng_words = [line.rstrip() for line in f if line.strip() != '']
         self.ng_words_ptn = re.compile(r'({})'.format('|'.join(ng_words)))
 
-        self.sudachi = dictionary.Dictionary(dict_type=self.DICT_TYPE).create()
+        self.sudachi = Dictionary(dict=self.DICT_TYPE).create(self.SPLIT_MODE)
 
     def is_matched_by_morpheme(self, match: Match, sentence: str) -> bool:
         """
@@ -132,7 +132,7 @@ class NGWordsFilter(DocumentFilter):
 
         morph_begin_ids = set()
         morph_end_ids = set()
-        for m in self.sudachi.tokenize(sentence, self.SPLIT_MODE):
+        for m in self.sudachi.tokenize(sentence):
             morph_begin_id, morph_end_id = m.begin(), m.end()
             if morph_begin_id <= matched_begin_id:
                 morph_begin_ids.add(morph_begin_id)

@@ -9,7 +9,7 @@ SPLITTED_CORPUS_DIR="${DATASET_DIR}/corpus_splitted_by_paragraph"
 # download dataset
 mkdir -p ${CORPUS_DIR}
 for target in "train" "validation" "test"; do
-  time /usr/local/bin/python3.7 prepare_dataset.py --target ${target} --output_dir ${CORPUS_DIR}
+  time python3 prepare_dataset.py --target ${target} --output_dir ${CORPUS_DIR}
 done
 
 ### split dataset for each paragraph

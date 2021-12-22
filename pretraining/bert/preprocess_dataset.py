@@ -120,7 +120,7 @@ def load_document_normalizers(document_normalizer_names: List[str], **kwargs) ->
 
 def main():
     args = get_args()
-    for k, v in args.__dict__.items():
+    for k, v in vars(args).items():
         logger.info('{}: {}'.format(k, v))
 
     sequence_sentence_filter = SequenceSentenceFilter(
@@ -141,7 +141,7 @@ def main():
 
     sequence_document_normalizer = SequenceDocumentNormalizer(
         load_document_normalizers(args.document_normalizer_names,
-                                  character_limit=args.character_limit)
+                                  concat_char_num=args.concat_char_num)
     )
 
     documents = load_dataset(args.input_dataset_path)
@@ -165,9 +165,9 @@ def main():
 
 def get_args():
     parser = argparse.ArgumentParser(description='Cleaning and corpus_preprocessing dataset.')
-    parser.add_argument('-i', '--input_dataset_path',
+    parser.add_argument('-i', '--input_dataset_path', required=True,
                         help='Input dataset.')
-    parser.add_argument('-o', '--output_dataset_path',
+    parser.add_argument('-o', '--output_dataset_path', required=True,
                         help='Output dataset.')
 
     # Sentence filters
