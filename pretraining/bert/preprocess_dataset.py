@@ -120,7 +120,7 @@ def load_document_normalizers(document_normalizer_names: List[str], **kwargs) ->
 
 def main():
     args = get_args()
-    for k, v in args.__dict__.items():
+    for k, v in vars(args).items():
         logger.info('{}: {}'.format(k, v))
 
     sequence_sentence_filter = SequenceSentenceFilter(
