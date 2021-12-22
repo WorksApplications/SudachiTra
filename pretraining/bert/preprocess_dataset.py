@@ -141,7 +141,7 @@ def main():
 
     sequence_document_normalizer = SequenceDocumentNormalizer(
         load_document_normalizers(args.document_normalizer_names,
-                                  character_limit=args.character_limit)
+                                  concat_char_num=args.concat_char_num)
     )
 
     documents = load_dataset(args.input_dataset_path)
