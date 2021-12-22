@@ -358,6 +358,12 @@ def evaluate_model(model, dataset, processed_dataset, data_args, output_dir=None
         return metric.compute(predictions=p.predictions, references=p.label_ids)
 
     metrics = compute_metrics(post_processed_eval)
+
+    if output_dir is not None:
+        output_file = output_dir / f"{stage}_metrics.json"
+        with open(output_file, "w") as writer:
+            json.dump(metrics, writer)
+
     return metrics
 
 
