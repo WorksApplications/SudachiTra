@@ -17,7 +17,7 @@ from tokenizers import NormalizedString, PreTokenizedString
 from typing import List, Optional
 
 from .. import SudachipyWordTokenizer
-from ..word_formater import WordFormatter, WordFormTypes
+from ..word_formatter import WordFormatter, WordFormTypes
 
 
 class CustomPreTokenizer:

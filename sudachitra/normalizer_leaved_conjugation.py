@@ -16,7 +16,7 @@ import json
 from sudachipy.morpheme import Morpheme
 from sudachipy.sudachipy import Dictionary
 
-from .word_formater import CONJUGATIVE_POS
+from .word_formatter import CONJUGATIVE_POS
 
 
 class NormalizerLeavedConjugation:

@@ -20,7 +20,7 @@ from progressbar import progressbar as tqdm
 
 from .. import SudachipyWordTokenizer
 from ..tokenization_bert_sudachipy import pos_substitution_format
-from ..word_formater import WordFormatter, WordFormTypes
+from ..word_formatter import WordFormatter, WordFormTypes
 
 
 class PartOfSpeechSubstitutionTokenizer(SudachipyWordTokenizer):

@@ -24,7 +24,7 @@ from transformers.tokenization_utils import PreTrainedTokenizer
 
 from .input_string_normalizer import InputStringNormalizer
 from .sudachipy_word_tokenizer import SudachipyWordTokenizer
-from .word_formater import WordFormatter
+from .word_formatter import WordFormatter
 
 
 VOCAB_FILES_NAMES = {"vocab_file": "vocab.txt"}

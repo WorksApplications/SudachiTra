@@ -22,7 +22,7 @@ from transformers.models.bert.tokenization_bert import WordpieceTokenizer
 
 from sudachitra import BertSudachipyTokenizer, SudachipyWordTokenizer
 from sudachitra.tokenization_bert_sudachipy import VOCAB_FILES_NAMES
-from sudachitra.word_formater import WordFormatter
+from sudachitra.word_formatter import WordFormatter
 
 
 class BertSudachipyTokenizationTest(unittest.TestCase):
