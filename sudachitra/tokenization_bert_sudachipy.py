@@ -217,12 +217,14 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
     def __getstate__(self):
         state = dict(self.__dict__)
         del state["word_tokenizer"]
+        del state["word_formatter"]
         return state
 
     # TODO: need to investigate the serialization behavior
     def __setstate__(self, state):
         self.__dict__ = state
         self.word_tokenizer = SudachipyWordTokenizer(**(self.sudachipy_kwargs or {}))
+        self.word_formatter = WordFormatter(self.word_form_type, self.word_tokenizer.sudachi_dict)
 
     def _tokenize(self, text, **kwargs):
         text = self.normalizer.normalize_str(text)
