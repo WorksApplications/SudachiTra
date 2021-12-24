@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from enum import Enum
-from sudachipy import Dictionary, Morpheme
 
+from sudachipy import Dictionary, Morpheme
 
 
 HALF_ASCII_TRANSLATE_TABLE = str.maketrans({chr(0xFF01 + _): chr(0x21 + _) for _ in range(94)})
@@ -53,9 +54,10 @@ class WordFormatter(object):
         self.sudachi_dict = sudachi_dict
         if self.word_form_type == "normalized_conjugation":
             from sudachitra.normalizer_leaved_conjugation import NormalizerLeavedConjugation
-            self.nlc = NormalizerLeavedConjugation("sudachitra/resources/inflection_table.json",
-                                                   "sudachitra/resources/conjugation_type_table.json",
-                                                   self.sudachi_dict)
+            self.nlc = NormalizerLeavedConjugation(
+                os.path.join(os.path.dirname(__file__), "resources/inflection_table.json"),
+                os.path.join(os.path.dirname(__file__), "resources/conjugation_type_table.json"),
+                self.sudachi_dict)
 
         self.word_form_types = {
             WordFormTypes.SURFACE: lambda m: m.surface(),
