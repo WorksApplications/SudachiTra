@@ -20,7 +20,7 @@ from progressbar import progressbar as tqdm
 
 from .. import SudachipyWordTokenizer
 from ..tokenization_bert_sudachipy import pos_substitution_format
-from ..word_formatter import WordFormatter, WordFormTypes
+from ..word_formatter import WordFormatter
 
 
 class PartOfSpeechSubstitutionTokenizer(SudachipyWordTokenizer):
@@ -28,7 +28,7 @@ class PartOfSpeechSubstitutionTokenizer(SudachipyWordTokenizer):
             self,
             split_mode: Optional[str] = "C",
             dict_type: Optional[str] = "core",
-            word_form_type: Optional[WordFormTypes] = "surface",
+            word_form_type: Optional[str] = "surface",
             **kwargs
     ):
         """
@@ -43,7 +43,7 @@ class PartOfSpeechSubstitutionTokenizer(SudachipyWordTokenizer):
                 "small", "core", or "full" can be specified.
             word_form_type (:obj:`str`, `optional`, defaults to :obj:`"surface"`):
                 Word form type for each morpheme.
-                "surface", "dictionary", "normalized", "dictionary_and_surface", or "normalized_and_surface" can be specified.
+                The values defined in WordFormTypes can be specified.
             **kwargs:
                 Sudachi dictionary parameters.
         """

@@ -61,7 +61,7 @@ class SudachipyPreTokenizer(SudachipyWordTokenizer, CustomPreTokenizer):
         self,
         split_mode: Optional[str] = "C",
         dict_type: Optional[str] = "core",
-        word_form_type: Optional[WordFormTypes] = "surface",
+        word_form_type: Optional[str] = "surface",
         **kwargs
     ):
         """
@@ -74,7 +74,7 @@ class SudachipyPreTokenizer(SudachipyWordTokenizer, CustomPreTokenizer):
             dict_type (:obj:`str`, `optional`, defaults to :obj:`"core"`):
                 Sudachi dictionary type to be used for tokenization.
                 "small", "core", or "full" can be specified.
-            word_form_type (:obj:`WordFormTypes`, `optional`, defaults to :obj:`"surface"`):
+            word_form_type (:obj:`str`, `optional`, defaults to :obj:`"surface"`):
                 Word form type for each morpheme.
                 The values defined in WordFormTypes can be specified.
             **kwargs:
