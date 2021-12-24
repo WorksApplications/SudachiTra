@@ -34,7 +34,7 @@ class NormalizerLeavedConjugation:
         """
         self.sudachi_dict = sudachi_dict
         self.id2pos = list(enumerate(self.sudachi_dict.pos_matcher([()])))
-        self.pos2id = {pos: id for (id, pos) in self.id2pos}
+        self.pos2id = {pos: pos_id for (pos_id, pos) in self.id2pos}
         self.is_necessary_inflection = sudachi_dict.pos_matcher(lambda p: p[0] in CONJUGATIVE_POS and (p[4] == "サ行変格" or p[5] != "終止形-一般")) # 「為る->する」のため、サ行変格のみ 終止形-一般も変化
 
         with open(inflection_table_path) as jf:
