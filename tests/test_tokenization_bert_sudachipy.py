@@ -21,7 +21,8 @@ import unittest
 from transformers.models.bert.tokenization_bert import WordpieceTokenizer
 
 from sudachitra import BertSudachipyTokenizer, SudachipyWordTokenizer
-from sudachitra.tokenization_bert_sudachipy import VOCAB_FILES_NAMES, WORD_FORM_TYPES
+from sudachitra.tokenization_bert_sudachipy import VOCAB_FILES_NAMES
+from sudachitra.word_formater import WordFormatter
 
 
 class BertSudachipyTokenizationTest(unittest.TestCase):
@@ -90,7 +91,7 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
             return
 
         self.assertListEqual(
-            list(map(WORD_FORM_TYPES['surface'],
+            list(map(WordFormatter('surface', tokenizer.sudachi_dict).format,
                      tokenizer.tokenize("appleはsmall辞書に、apple pieはcore辞書に、apple storeはfull辞書に収録されている。"))),
             ["apple", "は", "small", "辞書", "に", "、", "apple", " ", "pie", "は", "core", "辞書", "に", "、",
              "apple", " ", "store", "は", "full", "辞書", "に", "収録", "さ", "れ", "て", "いる", "。"]
@@ -103,7 +104,7 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
             return
 
         self.assertListEqual(
-            list(map(WORD_FORM_TYPES['surface'],
+            list(map(WordFormatter('surface', tokenizer.sudachi_dict).format,
                      tokenizer.tokenize("appleはsmall辞書に、apple pieはcore辞書に、apple storeはfull辞書に収録されている。"))),
             ["apple", "は", "small", "辞書", "に", "、", "apple pie", "は", "core", "辞書", "に", "、",
              "apple", " ", "store", "は", "full", "辞書", "に", "収録", "さ", "れ", "て", "いる", "。"]
@@ -116,7 +117,7 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
             return
 
         self.assertListEqual(
-            list(map(WORD_FORM_TYPES['surface'],
+            list(map(WordFormatter('surface', tokenizer.sudachi_dict).format,
                      tokenizer.tokenize("appleはsmall辞書に、apple pieはcore辞書に、apple storeはfull辞書に収録されている。"))),
             ["apple", "は", "small", "辞書", "に", "、", "apple pie", "は", "core", "辞書", "に", "、",
              "apple store", "は", "full", "辞書", "に", "収録", "さ", "れ", "て", "いる", "。"]
@@ -219,7 +220,6 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
             ["泳ぎ", "ます", "。"]
         )
 
-
     def test_sudachipy_tokenizer_unit_a(self):
         try:
             tokenizer = SudachipyWordTokenizer(split_mode="A")
@@ -227,7 +227,7 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
             return
 
         self.assertListEqual(
-            list(map(WORD_FORM_TYPES['surface'], tokenizer.tokenize("徳島阿波おどり空港"))),
+            list(map(WordFormatter('surface', tokenizer.sudachi_dict).format, tokenizer.tokenize("徳島阿波おどり空港"))),
             ["徳島", "阿波", "おどり", "空港"]
         )
 
@@ -238,7 +238,7 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
             return
 
         self.assertListEqual(
-            list(map(WORD_FORM_TYPES['surface'], tokenizer.tokenize("徳島阿波おどり空港"))),
+            list(map(WordFormatter('surface', tokenizer.sudachi_dict).format, tokenizer.tokenize("徳島阿波おどり空港"))),
             ["徳島", "阿波おどり", "空港"]
         )
 
@@ -249,7 +249,7 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
             return
 
         self.assertListEqual(
-            list(map(WORD_FORM_TYPES['surface'], tokenizer.tokenize("徳島阿波おどり空港"))),
+            list(map(WordFormatter('surface', tokenizer.sudachi_dict).format, tokenizer.tokenize("徳島阿波おどり空港"))),
             ["徳島阿波おどり空港"]
         )
 

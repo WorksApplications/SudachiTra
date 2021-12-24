@@ -24,6 +24,7 @@ from transformers.tokenization_utils import PreTrainedTokenizer
 
 from .input_string_normalizer import InputStringNormalizer
 from .sudachipy_word_tokenizer import SudachipyWordTokenizer
+from .word_formater import WordFormatter
 
 
 VOCAB_FILES_NAMES = {"vocab_file": "vocab.txt"}
@@ -101,21 +102,6 @@ SUBWORD_TOKENIZER_TYPES = [
     "wordpiece",
     "character",
 ]
-
-HALF_ASCII_TRANSLATE_TABLE = str.maketrans({chr(0xFF01 + _): chr(0x21 + _) for _ in range(94)})
-
-WORD_FORM_TYPES = {
-    "surface": lambda m: m.surface(),
-    "dictionary": lambda m: m.dictionary_form(),
-    "normalized": lambda m: m.normalized_form(),
-    "dictionary_and_surface": lambda m: m.surface() if m.part_of_speech()[0] in CONJUGATIVE_POS else m.dictionary_form(),
-    "normalized_and_surface": lambda m: m.surface() if m.part_of_speech()[0] in CONJUGATIVE_POS else m.normalized_form(),
-    "surface_half_ascii": lambda m: m.surface().translate(HALF_ASCII_TRANSLATE_TABLE),
-    "dictionary_half_ascii": lambda m: m.dictionary_form().translate(HALF_ASCII_TRANSLATE_TABLE),
-    "dictionary_and_surface_half_ascii": lambda m: m.surface().translate(HALF_ASCII_TRANSLATE_TABLE) if m.part_of_speech()[0] in CONJUGATIVE_POS else m.dictionary_form().translate(HALF_ASCII_TRANSLATE_TABLE),
-}
-
-CONJUGATIVE_POS = {'動詞', '形容詞', '形容動詞', '助動詞'}
 
 
 def pos_substitution_format(token: Morpheme) -> str:
@@ -198,9 +184,7 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
         self.sudachipy_kwargs = copy.deepcopy(sudachipy_kwargs)
         self.word_tokenizer = SudachipyWordTokenizer(**(self.sudachipy_kwargs or {}))
         self.word_form_type = word_form_type
-        if self.word_form_type == "normalized_conjugation":
-            from sudachitra.normalizer_leaved_conjugation import NormalizerLeavedConjugation
-            self.nlc = NormalizerLeavedConjugation("sudachitra/resources/inflection_table.json", "sudachitra/resources/conjugation_type_table.json", self.word_tokenizer.sudachi_dict)
+        self.word_formatter = WordFormatter(self.word_form_type, self.word_tokenizer.sudachi_dict)
 
         self.do_subword_tokenize = do_subword_tokenize
         self.subword_tokenizer_type = subword_tokenizer_type
@@ -243,14 +227,11 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
     def _tokenize(self, text, **kwargs):
         text = self.normalizer.normalize_str(text)
         tokens = self.word_tokenizer.tokenize(text)
-        if self.word_form_type == "normalized_conjugation":
-            def word_format(m): return self.nlc.normalized(m)
-        else:
-            word_format = WORD_FORM_TYPES[self.word_form_type]
+
         if self.do_subword_tokenize:
             if self.subword_tokenizer_type == "pos_substitution":
                 def _substitution(token):
-                    word = word_format(token)
+                    word = self.word_formatter.format(token)
                     if word in self.vocab:
                         return word
                     substitute = pos_substitution_format(token)
@@ -260,10 +241,10 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
                 split_tokens = [_substitution(token) for token in tokens]
             else:
                 split_tokens = [sub_token for token in tokens for sub_token in self.subword_tokenizer.tokenize(
-                    word_format(token)
+                    self.word_formatter.format(token)
                 )]
         else:
-            split_tokens = [word_format(token) for token in tokens]
+            split_tokens = [self.word_formatter.format(token) for token in tokens]
 
         return split_tokens
 
