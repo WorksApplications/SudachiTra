@@ -19,10 +19,10 @@ from sudachipy.sudachipy import Dictionary
 from .word_formatter import CONJUGATIVE_POS
 
 
-class NormalizerLeavedConjugation:
+class ConjugationPreservingNormalizer:
     def __init__(self, inflection_table_path, conjugation_type_table_path, sudachi_dict: Dictionary) -> None:
         """
-        Constructs a NormalizerLeavedConjugation.
+        Constructs a ConjugationPreservingNormalizer.
 
         Args:
             inflection_table_path (:obj:`str`):

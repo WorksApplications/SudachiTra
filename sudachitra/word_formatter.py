@@ -53,8 +53,8 @@ class WordFormatter(object):
         self.word_form_type = word_form_type
         self.sudachi_dict = sudachi_dict
         if self.word_form_type == "normalized_conjugation":
-            from sudachitra.normalizer_leaved_conjugation import NormalizerLeavedConjugation
-            self.nlc = NormalizerLeavedConjugation(
+            from sudachitra.conjugation_preserving_normalizer import ConjugationPreservingNormalizer
+            self.conjugation_preserving_normalizer = ConjugationPreservingNormalizer(
                 os.path.join(os.path.dirname(__file__), "resources/inflection_table.json"),
                 os.path.join(os.path.dirname(__file__), "resources/conjugation_type_table.json"),
                 self.sudachi_dict)
@@ -68,7 +68,7 @@ class WordFormatter(object):
             WordFormTypes.SURFACE_HALF_ASCII: lambda m: m.surface().translate(HALF_ASCII_TRANSLATE_TABLE),
             WordFormTypes.DICTIONARY_HALF_ASCII: lambda m: m.dictionary_form().translate(HALF_ASCII_TRANSLATE_TABLE),
             WordFormTypes.DICTIONARY_AND_SURFACE_HALF_ASCII: lambda m: m.surface().translate(HALF_ASCII_TRANSLATE_TABLE) if m.part_of_speech()[0] in CONJUGATIVE_POS else m.dictionary_form().translate(HALF_ASCII_TRANSLATE_TABLE),
-            WordFormTypes.NORMALIZED_CONJUGATION: lambda m: self.nlc.normalized(m)
+            WordFormTypes.NORMALIZED_CONJUGATION: lambda m: self.conjugation_preserving_normalizer.normalized(m)
         }
         self._format = self.word_form_types[self.word_form_type]
 
