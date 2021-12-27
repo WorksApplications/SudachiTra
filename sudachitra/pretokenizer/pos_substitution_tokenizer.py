@@ -20,7 +20,7 @@ from progressbar import progressbar as tqdm
 
 from .. import SudachipyWordTokenizer
 from ..tokenization_bert_sudachipy import pos_substitution_format
-from ..word_formatter import WordFormatter
+from ..word_formatter import word_formatter
 
 
 class PartOfSpeechSubstitutionTokenizer(SudachipyWordTokenizer):
@@ -49,7 +49,7 @@ class PartOfSpeechSubstitutionTokenizer(SudachipyWordTokenizer):
         """
         super().__init__(split_mode=split_mode, dict_type=dict_type, **kwargs)
         self.word_form_type = word_form_type
-        self.word_formatter = WordFormatter(self.word_form_type, self.sudachi_dict)
+        self.word_formatter = word_formatter(self.word_form_type, self.sudachi_dict)
         self._vocab = None
 
     def get_word2freq_and_pos(self, files: List[str]) -> Tuple[Dict[str, int], List[str]]:
@@ -76,7 +76,7 @@ class PartOfSpeechSubstitutionTokenizer(SudachipyWordTokenizer):
                     line = line.strip()
                     if line != "":
                         for m in self.tokenize(line):
-                            word2freq[self.word_formatter.format(m)] += 1
+                            word2freq[self.word_formatter(m)] += 1
                             pos_list.append(pos_substitution_format(m))
 
         return word2freq, list(set(pos_list))

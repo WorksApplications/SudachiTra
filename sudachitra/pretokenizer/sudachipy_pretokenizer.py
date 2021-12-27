@@ -17,7 +17,7 @@ from tokenizers import NormalizedString, PreTokenizedString
 from typing import List, Optional
 
 from .. import SudachipyWordTokenizer
-from ..word_formatter import WordFormatter, WordFormTypes
+from ..word_formatter import word_formatter, WordFormTypes
 
 
 class CustomPreTokenizer:
@@ -82,7 +82,7 @@ class SudachipyPreTokenizer(SudachipyWordTokenizer, CustomPreTokenizer):
         """
         SudachipyWordTokenizer.__init__(self, split_mode=split_mode, dict_type=dict_type, **kwargs)
         self.word_form_type = word_form_type
-        self.word_formatter = (WordFormatter(self.word_form_type, self.sudachi_dict)
+        self.word_formatter = (word_formatter(self.word_form_type, self.sudachi_dict)
                                if self.word_form_type != WordFormTypes.SURFACE else None)
 
     def custom_split(self, i: int, normalized_string: NormalizedString) -> List[NormalizedString]:
@@ -103,6 +103,6 @@ class SudachipyPreTokenizer(SudachipyWordTokenizer, CustomPreTokenizer):
             raise ValueError(len(morphs), len(tokens), len(normalized_strings), tokens, normalized_strings)
 
         if self.word_form_type != WordFormTypes.SURFACE:
-            _ = [ns.replace(ns.normalized, self.word_formatter.format(m)) for ns, m in zip(normalized_strings, morphs)]
+            _ = [ns.replace(ns.normalized, self.word_formatter(m)) for ns, m in zip(normalized_strings, morphs)]
 
         return normalized_strings

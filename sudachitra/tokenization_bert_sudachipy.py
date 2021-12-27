@@ -24,7 +24,7 @@ from transformers.tokenization_utils import PreTrainedTokenizer
 
 from .input_string_normalizer import InputStringNormalizer
 from .sudachipy_word_tokenizer import SudachipyWordTokenizer
-from .word_formatter import WordFormatter
+from .word_formatter import word_formatter
 
 
 VOCAB_FILES_NAMES = {"vocab_file": "vocab.txt"}
@@ -184,7 +184,7 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
         self.sudachipy_kwargs = copy.deepcopy(sudachipy_kwargs)
         self.word_tokenizer = SudachipyWordTokenizer(**(self.sudachipy_kwargs or {}))
         self.word_form_type = word_form_type
-        self.word_formatter = WordFormatter(self.word_form_type, self.word_tokenizer.sudachi_dict)
+        self.word_formatter = word_formatter(self.word_form_type, self.word_tokenizer.sudachi_dict)
 
         self.do_subword_tokenize = do_subword_tokenize
         self.subword_tokenizer_type = subword_tokenizer_type
@@ -224,7 +224,7 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
     def __setstate__(self, state):
         self.__dict__ = state
         self.word_tokenizer = SudachipyWordTokenizer(**(self.sudachipy_kwargs or {}))
-        self.word_formatter = WordFormatter(self.word_form_type, self.word_tokenizer.sudachi_dict)
+        self.word_formatter = word_formatter(self.word_form_type, self.word_tokenizer.sudachi_dict)
 
     def _tokenize(self, text, **kwargs):
         text = self.normalizer.normalize_str(text)
@@ -233,7 +233,7 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
         if self.do_subword_tokenize:
             if self.subword_tokenizer_type == "pos_substitution":
                 def _substitution(token):
-                    word = self.word_formatter.format(token)
+                    word = self.word_formatter(token)
                     if word in self.vocab:
                         return word
                     substitute = pos_substitution_format(token)
@@ -243,10 +243,10 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
                 split_tokens = [_substitution(token) for token in tokens]
             else:
                 split_tokens = [sub_token for token in tokens for sub_token in self.subword_tokenizer.tokenize(
-                    self.word_formatter.format(token)
+                    self.word_formatter(token)
                 )]
         else:
-            split_tokens = [self.word_formatter.format(token) for token in tokens]
+            split_tokens = [self.word_formatter(token) for token in tokens]
 
         return split_tokens
 
