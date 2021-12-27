@@ -17,7 +17,7 @@ from tokenizers import NormalizedString, PreTokenizedString
 from typing import List, Optional
 
 from .. import SudachipyWordTokenizer
-from ..tokenization_bert_sudachipy import WORD_FORM_TYPES
+from ..word_formatter import word_formatter, WordFormTypes
 
 
 class CustomPreTokenizer:
@@ -76,13 +76,14 @@ class SudachipyPreTokenizer(SudachipyWordTokenizer, CustomPreTokenizer):
                 "small", "core", or "full" can be specified.
             word_form_type (:obj:`str`, `optional`, defaults to :obj:`"surface"`):
                 Word form type for each morpheme.
-                "surface", "dictionary", "normalized", "dictionary_and_surface", or "normalized_and_surface" can be specified.
+                The values defined in WordFormTypes can be specified.
             **kwargs:
                 Sudachi dictionary parameters.
         """
         SudachipyWordTokenizer.__init__(self, split_mode=split_mode, dict_type=dict_type, **kwargs)
         self.word_form_type = word_form_type
-        self.word_formatter = WORD_FORM_TYPES[self.word_form_type] if self.word_form_type != "surface" else None
+        self.word_formatter = (word_formatter(self.word_form_type, self.sudachi_dict)
+                               if self.word_form_type != WordFormTypes.SURFACE else None)
 
     def custom_split(self, i: int, normalized_string: NormalizedString) -> List[NormalizedString]:
         """
@@ -101,7 +102,7 @@ class SudachipyPreTokenizer(SudachipyWordTokenizer, CustomPreTokenizer):
         if len(tokens) != len(normalized_strings):
             raise ValueError(len(morphs), len(tokens), len(normalized_strings), tokens, normalized_strings)
 
-        if self.word_form_type != 'surface':
+        if self.word_form_type != WordFormTypes.SURFACE:
             _ = [ns.replace(ns.normalized, self.word_formatter(m)) for ns, m in zip(normalized_strings, morphs)]
 
         return normalized_strings

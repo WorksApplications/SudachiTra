@@ -17,6 +17,7 @@ import os
 from glob import glob
 
 from sudachitra.pretokenizer import JapaneseBertWordPieceTokenizer, SudachipyPreTokenizer
+from sudachitra.word_formatter import WordFormTypes
 
 
 def main():
@@ -80,7 +81,7 @@ def get_args():
     parser.add_argument('--split_mode', default='C', choices=['A', 'B', 'C', 'a', 'b', 'c'],
                         help='The mode of splitting.')
     parser.add_argument('--word_form_type', default='surface',
-                        choices=['surface', 'dictionary', 'normalized', 'dictionary_and_surface', 'normalized_and_surface'],
+                        choices=WordFormTypes, type=WordFormTypes,
                         help='Word form type for each morpheme.')
 
     # Output

@@ -14,9 +14,9 @@
 
 from typing import Optional
 
-from sudachipy.dictionary import Dictionary
-from sudachipy.morphemelist import MorphemeList
-from sudachipy.tokenizer import Tokenizer
+from sudachipy import Dictionary
+from sudachipy import MorphemeList
+from sudachipy import SplitMode
 
 
 class SudachipyWordTokenizer:
@@ -46,16 +46,16 @@ class SudachipyWordTokenizer:
         """
         split_mode = split_mode.upper()
         if split_mode == "C":
-            self.split_mode = Tokenizer.SplitMode.C
+            self.split_mode = SplitMode.C
         elif split_mode == "B":
-            self.split_mode = Tokenizer.SplitMode.B
+            self.split_mode = SplitMode.B
         elif split_mode == "A":
-            self.split_mode = Tokenizer.SplitMode.A
+            self.split_mode = SplitMode.A
         else:
             raise ValueError("Invalid `split_mode`: " + split_mode)
 
-        self.sudachi_dict = Dictionary(config_path=config_path, resource_dir=resource_dir, dict_type=dict_type)
-        self.sudachi = self.sudachi_dict.create()
+        self.sudachi_dict = Dictionary(config_path=config_path, resource_dir=resource_dir, dict=dict_type)
+        self.sudachi = self.sudachi_dict.create(self.split_mode)
 
     def tokenize(self, text: str) -> MorphemeList:
         """
@@ -67,4 +67,4 @@ class SudachipyWordTokenizer:
         Returns:
             MorphemeList: List of morphemes.
         """
-        return self.sudachi.tokenize(text, self.split_mode)
+        return self.sudachi.tokenize(text)
