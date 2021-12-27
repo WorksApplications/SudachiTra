@@ -20,7 +20,7 @@ from sudachipy import Dictionary, Morpheme
 
 HALF_ASCII_TRANSLATE_TABLE = str.maketrans({chr(0xFF01 + _): chr(0x21 + _) for _ in range(94)})
 
-CONJUGATIVE_POS = {'動詞', '形容詞', '形容動詞', '助動詞'}
+CONJUGATIVE_POS = {'動詞', '形容詞', '助動詞'}
 
 
 class WordFormTypes(str, Enum):
