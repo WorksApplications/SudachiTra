@@ -55,7 +55,7 @@ class SudachipyWordTokenizer:
             raise ValueError("Invalid `split_mode`: " + split_mode)
 
         self.sudachi_dict = Dictionary(config_path=config_path, resource_dir=resource_dir, dict=dict_type)
-        self.sudachi = self.sudachi_dict.create()
+        self.sudachi = self.sudachi_dict.create(self.split_mode)
 
     def tokenize(self, text: str) -> MorphemeList:
         """
@@ -67,4 +67,4 @@ class SudachipyWordTokenizer:
         Returns:
             MorphemeList: List of morphemes.
         """
-        return self.sudachi.tokenize(text, self.split_mode)
+        return self.sudachi.tokenize(text)
