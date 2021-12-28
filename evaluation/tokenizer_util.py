@@ -49,7 +49,27 @@ class Juman(Identity):
         self.tok = pyknp.Juman()
         return
 
-    def tokenize(self, line: str) -> str:
-        normalized = mojimoji.han_to_zen(line).replace("\u3000", " ")
-        morphs = self.tok.analysis(normalized)
-        return " ".join(m.midasi for m in morphs)
+    def tokenize(self, line: str, limit_step=10) -> str:
+        normalized = mojimoji.han_to_zen(line)
+
+        # truncate input according to the jumanpp input limit
+        truncated = _utf8_byte_truncate(normalized, 4096)
+        morphs = self.tok.analysis(truncated)
+        separated = " ".join(m.midasi for m in morphs)
+        return separated
+
+
+def _utf8_lead_byte(b):
+    '''A UTF-8 intermediate byte starts with the bits 10xxxxxx.'''
+    return (b & 0xC0) != 0x80
+
+
+def _utf8_byte_truncate(text, max_bytes):
+    utf8 = text.encode('utf8')
+    if len(utf8) <= max_bytes:
+        return text
+    # separate before lead byte
+    i = max_bytes
+    while i > 0 and not _utf8_lead_byte(utf8[i]):
+        i -= 1
+    return utf8[:i].decode("utf8")
