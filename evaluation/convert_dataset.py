@@ -21,42 +21,27 @@ logger.setLevel(logging.INFO)
 def convert_amazon(args):
     # convert Amazon Review Corpus (https://registry.opendata.aws/amazon-reviews-ml/)
 
-    if args.dataset_dir_or_file is None:
-        logger.info("Load data from hugging face hub.")
-        datadict = load_dataset("amazon_reviews_multi", "ja")
-
-        if args.seed is not None or args.split_rate is not None:
-            logger.warning("Amazon review from HF-hub is already splitted. "
-                           "skip shuffle and split")
-
-        datadict = select_column(datadict, {
-            "review_body": "sentence1",
-            "stars": "label",
-        })
-        datadict = DatasetDict({
-            "train": datadict["train"],
-            "dev": datadict["validation"],
-            "test": datadict["test"]}
-        )
-
+    if args.dataset_dir_or_file is not None:
+        logger.warning(
+            f"Load data from hugging face hub and ignore --input arg.")
     else:
-        dataset_file = Path(args.dataset_dir_or_file)
-        FILE_NAME = "amazon_reviews_multilingual_JP_v1_00.tsv.gz"
-        if dataset_file.is_dir():
-            dataset_file = dataset_file / FILE_NAME
-        if not dataset_file.exists():
-            raise ValueError(f"file {FILE_NAME} does not exixts.")
+        logger.info("Load data from hugging face hub.")
 
-        dataset = load_dataset("csv", data_files=str(
-            dataset_file), delimiter="\t")["train"]
+    datadict = load_dataset("amazon_reviews_multi", "ja")
 
-        dataset = shuffle_dataset(dataset, args.seed)
-        datadict = split_dataset(dataset, args.split_rate)
+    if args.seed is not None or args.split_rate is not None:
+        logger.warning("amazon_reviews_multi dataset is already splitted. "
+                       "skip shuffle and split")
 
-        datadict = select_column(datadict, {
-            "review_body": "sentence1",
-            "star_rating": "label",
-        })
+    datadict = select_column(datadict, {
+        "review_body": "sentence1",
+        "stars": "label",
+    })
+    datadict = DatasetDict({
+        "train": datadict["train"],
+        "dev": datadict["validation"],
+        "test": datadict["test"]}
+    )
 
     datadict = tokenize_text(datadict, args.tokenizer, [
                              "sentence1"], args.dicdir, args.mecabrc)
@@ -263,6 +248,7 @@ def split_dataset(dataset: Dataset, split_rate_str: str):
     r_valtest = (v_val + v_test) / (v_train + v_val + v_test)
     r_test = v_test / (v_val + v_test)
 
+    # train_test_split generates DatasetDict with "train" and "test" set
     train_testvalid = dataset.train_test_split(
         test_size=r_valtest, shuffle=False)
 
