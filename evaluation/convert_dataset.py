@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict
 
 from datasets import load_dataset, Dataset, DatasetDict
-import tokenizer_util
+import tokenizer_utils
 
 
 logger = logging.getLogger(__name__)
@@ -193,11 +193,11 @@ def tokenize_text(datadict: DatasetDict, tokenizer: str, target_columns, dicdir=
         return datadict
     elif tokenizer == "juman":
         logger.info("split text using Juman++")
-        tok = tokenizer_util.Juman()
+        tok = tokenizer_utils.Juman()
     elif tokenizer == "mecab":
         logger.info(
             f"split text using MeCab (dicdir: {dicdir}, rc: {mecabrc})")
-        tok = tokenizer_util.MecabJuman(dicdir, mecabrc)
+        tok = tokenizer_utils.MecabJuman(dicdir, mecabrc)
     else:
         raise ValueError(f"Unknown tokenizer: {tokenizer}")
 

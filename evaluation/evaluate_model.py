@@ -22,7 +22,7 @@ from sudachitra.tokenization_bert_sudachipy import BertSudachipyTokenizer
 import classification_utils
 import multiple_choice_utils
 import qa_utils
-import tokenizer_util
+import tokenizer_utils
 
 
 logger = logging.getLogger(__name__)
@@ -323,13 +323,13 @@ def setup_pretokenizer(model_args):
     # pretokenizer works for that.
     if model_args.pretokenizer_name == "juman":
         logger.info("Use juman for pretokenize")
-        return tokenizer_util.Juman()
+        return tokenizer_utils.Juman()
     if model_args.pretokenizer_name == "mecab-juman":
         logger.info("Use mecab-juman for pretokenize")
-        return tokenizer_util.MecabJuman()
+        return tokenizer_utils.MecabJuman()
 
     logger.info("Skip pretokenize")
-    return tokenizer_util.Identity()
+    return tokenizer_utils.Identity()
 
 
 def setup_tokenizer(model_args):
