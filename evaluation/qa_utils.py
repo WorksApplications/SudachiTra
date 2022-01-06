@@ -364,6 +364,19 @@ def evaluate_model(model, dataset, processed_dataset, data_args, output_dir=None
         with open(output_file, "w") as writer:
             json.dump(metrics, writer)
 
+        predictions = post_processed_eval.predictions
+        label_ids = post_processed_eval.label_ids
+        id2answers = {d["id"]: d["answers"]["text"] for d in label_ids}
+        output_file = output_dir / f"{stage}_predictions.tsv"
+        with open(output_file, "w") as w:
+            w.write("id\tanswer\tprediction\n")
+            for p in predictions:
+                did = p["id"]
+                ans = id2answers[did]
+                ans = "" if len(ans) == 0 else ans[0]
+                pred = p["prediction_text"]
+                w.write(f"{did}\t{ans}\t{pred}\n")
+
     return metrics
 
 
