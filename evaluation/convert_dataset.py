@@ -3,7 +3,7 @@ import logging
 import sys
 from collections import defaultdict as ddict
 from pathlib import Path
-from typing import Dict
+from typing import List, Dict
 
 from datasets import load_dataset, Dataset, DatasetDict
 import tokenizer_utils
@@ -43,8 +43,9 @@ def convert_amazon(args):
         "test": datadict["test"]}
     )
 
-    datadict = tokenize_text(datadict, args.tokenizer, [
-                             "sentence1"], args.dicdir, args.mecabrc)
+    text_columns = ["sentence1"]
+    datadict = tokenize_texts(datadict, text_columns,
+                              args.tokenizer, args.dicdir, args.mecabrc)
     return datadict
 
 
@@ -93,8 +94,10 @@ def convert_kuci(args):
     datadict = datadict.map(convert, batched=True,
                             remove_columns=[f"choice_{a}" for a in a2i.keys()])
 
-    datadict = tokenize_text(datadict, args.tokenizer, [
-                             f"choice_{i}" for i in a2i.values()] + ["context"], args.dicdir, args.mecabrc)
+    text_columns = ["context"] + [f"choice_{i}" for i in a2i.values()]
+    datadict = tokenize_texts(datadict, text_columns,
+                              args.tokenizer, args.dicdir, args.mecabrc)
+
     return datadict
 
 
@@ -143,8 +146,9 @@ def convert_rcqa(args):
         return outputs
     datadict = datadict.map(flatten_doc, batched=True).flatten()
 
-    datadict = tokenize_text(datadict, args.tokenizer, [
-                             "question", "documents.text", "answer"], args.dicdir, args.mecabrc)
+    text_columns = ["question", "documents.text", "answer"]
+    datadict = tokenize_texts(datadict, text_columns,
+                              args.tokenizer, args.dicdir, args.mecabrc)
 
     for key in datadict:
         logger.info(
@@ -187,7 +191,9 @@ def convert_rcqa(args):
     return datadict
 
 
-def tokenize_text(datadict: DatasetDict, tokenizer: str, target_columns, dicdir=None, mecabrc=None) -> DatasetDict:
+def tokenize_texts(datadict: DatasetDict, text_columns: List[str], tokenizer: str, dicdir=None, mecabrc=None) -> DatasetDict:
+    """Tokenize texts with wakati-mode (outputs space delimited surfaces)."""
+
     if tokenizer is None:
         logger.info("keep texts as is.")
         return datadict
@@ -202,7 +208,7 @@ def tokenize_text(datadict: DatasetDict, tokenizer: str, target_columns, dicdir=
         raise ValueError(f"Unknown tokenizer: {tokenizer}")
 
     def convert(examples):
-        for clm in target_columns:
+        for clm in text_columns:
             examples[clm] = [tok(t) for t in examples[clm]]
         return examples
 
@@ -211,6 +217,8 @@ def tokenize_text(datadict: DatasetDict, tokenizer: str, target_columns, dicdir=
 
 
 def select_column(datadict: DatasetDict, rename_map: Dict[str, str]) -> DatasetDict:
+    """Renames columns based on given dict and deletes other columns."""
+
     # assume there is train dataset
     column_names = datadict["train"].column_names
 
@@ -224,21 +232,21 @@ def select_column(datadict: DatasetDict, rename_map: Dict[str, str]) -> DatasetD
 
 
 def shuffle_dataset(dataset: Dataset, seed=None) -> Dataset:
-    # shuffle if seed is given
+    """Shuffles dataset if seed is given."""
     if seed is not None:
         logger.info(f"shuffle data with seed {seed}.")
         return dataset.shuffle(seed=seed)
     else:
-        logger.info(f"skip shuffle. set seed option to shuffle.")
+        logger.info(f"skip shuffle. set --seed option to shuffle.")
         return dataset
 
 
-def split_dataset(dataset: Dataset, split_rate_str: str):
-    # split into 3 parts
+def split_dataset(dataset: Dataset, split_rate_str: str = None):
+    """Splits dataset into train/dev/test set."""
     # ref: https://discuss.huggingface.co/t/how-to-split-main-dataset-into-train-dev-test-as-datasetdict/1090
 
     DEFAULT_SPLIT_RATE = "8/1/1"
-    split_rate_str = split_rate_str or DEFAULT_SPLIT_RATE
+    split_rate_str = split_rate_str if split_rate_str is None else DEFAULT_SPLIT_RATE
 
     v_train, v_val, v_test = (int(v) for v in split_rate_str.split("/"))
     if not (v_train > 0 and v_val >= 0 and v_test > 0):
@@ -248,7 +256,7 @@ def split_dataset(dataset: Dataset, split_rate_str: str):
     r_valtest = (v_val + v_test) / (v_train + v_val + v_test)
     r_test = v_test / (v_val + v_test)
 
-    # train_test_split generates DatasetDict with "train" and "test" set
+    # train_test_split generates DatasetDict with name "train" and "test"
     train_testvalid = dataset.train_test_split(
         test_size=r_valtest, shuffle=False)
 

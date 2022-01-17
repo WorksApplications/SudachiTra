@@ -20,7 +20,7 @@ class Identity():
 
 class MecabJuman(Identity):
     # tokenization for NICT BERT
-    def __init__(self, dicdir=None, mecabrc=None):
+    def __init__(self, dicdir: str = None, mecabrc: str = None):
         # assume existance of followings (installed by `apt install mecab`)
         dicdir = dicdir or "/var/lib/mecab/dic/juman-utf8"
         mecabrc = mecabrc or "/etc/mecabrc"
@@ -49,7 +49,7 @@ class Juman(Identity):
         self.tok = pyknp.Juman()
         return
 
-    def tokenize(self, line: str, limit_step=10) -> str:
+    def tokenize(self, line: str) -> str:
         normalized = mojimoji.han_to_zen(line)
 
         # truncate input according to the jumanpp input limit
@@ -64,7 +64,7 @@ def _utf8_lead_byte(b):
     return (b & 0xC0) != 0x80
 
 
-def _utf8_byte_truncate(text, max_bytes):
+def _utf8_byte_truncate(text: str, max_bytes: int):
     utf8 = text.encode('utf8')
     if len(utf8) <= max_bytes:
         return text
