@@ -36,6 +36,8 @@ def setup_args(data_args, datasets):
             column_names = ["sentence1"]
     else:
         column_names = data_columns[:2]
+
+    data_args.data_columns = data_columns
     data_args.column_names = column_names
     return data_args
 

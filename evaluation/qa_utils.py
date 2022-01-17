@@ -182,7 +182,6 @@ def preprocess_dataset(dataset, data_args, tokenizer, max_length):
         # mapping from each tokens to their span in the original text
         if "offset_mapping" not in result:
             # construct manually, since offset_mapping is not available for PreTrainedTokenizer
-            logger.info("construct offset_mapping")
             result["offset_mapping"] = _construct_offset_mapping(
                 examples[question_column], examples[context_column], result, tokenizer)
 
@@ -367,7 +366,7 @@ def evaluate_model(model, dataset, processed_dataset, data_args, output_dir=None
         predictions = post_processed_eval.predictions
         label_ids = post_processed_eval.label_ids
         id2answers = {d["id"]: d["answers"]["text"] for d in label_ids}
-        output_file = output_dir / f"{stage}_predictions.tsv"
+        output_file = output_dir / f"{stage}_results.tsv"
         with open(output_file, "w") as w:
             w.write("id\tanswer\tprediction\n")
             for p in predictions:

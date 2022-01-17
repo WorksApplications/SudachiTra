@@ -24,7 +24,6 @@ class Stages (Enum):
 
 
 def summary_amazon(args):
-    # load results
     results = {}
     for subdir in args.input_dir.glob("*"):
         if not subdir.is_dir():
@@ -36,9 +35,12 @@ def summary_amazon(args):
                 f.readline()  # skip headerline
                 ids, labels, preds = zip(*(line.strip().split("\t")
                                          for line in f.readlines()))
+
             num_samples = len(ids)
-            labels = [int(v) for v in labels]
-            preds = [int(v) for v in preds]
+            labels = [int(v[6:] if v.startswith("LABEL_") else v)
+                      for v in labels]
+            preds = [int(v[6:] if v.startswith("LABEL_") else v)
+                     for v in preds]
             results[subdir.name][stage]["acc"] = sum(
                 l == p for l, p in zip(labels, preds)) / num_samples
             results[subdir.name][stage]["mse"] = sum(
@@ -48,7 +50,6 @@ def summary_amazon(args):
 
     log_best_model(results, key=lambda k: results[k][Stages.VALIDATION]["acc"])
 
-    # save as
     df = pd.DataFrame(
         data=((hp,
                ret[Stages.VALIDATION]["acc"], ret[Stages.VALIDATION]["mse"], ret[Stages.VALIDATION]["mae"],
@@ -60,7 +61,6 @@ def summary_amazon(args):
 
 
 def summary_kuci(args):
-    # load results
     results = ddict(ddict)
     for subdir in args.input_dir.glob("*"):
         if not subdir.is_dir():
@@ -78,7 +78,6 @@ def summary_kuci(args):
 
     log_best_model(results, key=lambda k: results[k][Stages.VALIDATION]["acc"])
 
-    # save as
     df = pd.DataFrame(
         data=((hp, ret[Stages.VALIDATION]["acc"], ret[Stages.TEST]["acc"])
               for hp, ret in results.items()),
@@ -88,7 +87,6 @@ def summary_kuci(args):
 
 
 def summary_rcqa(args):
-    # load results
     results = {}
     for subdir in args.input_dir.glob("*"):
         if not subdir.is_dir():
@@ -102,7 +100,6 @@ def summary_rcqa(args):
     log_best_model(
         results, key=lambda k: results[k][Stages.VALIDATION]["exact"])
 
-    # save as
     df = pd.DataFrame(
         data=((hp,
                ret[Stages.VALIDATION]["exact"], ret[Stages.VALIDATION]["f1"],
@@ -159,7 +156,6 @@ def validate_args(args):
         if args.output_file.exists():
             raise ValueError(
                 f"File {args.output_file} already exists. Set --overwrite to continue anyway.")
-
     return
 
 
