@@ -1,4 +1,5 @@
-# tensorflow
+# flameworks
+pytorch
 tensorflow
 
 # huggingface
@@ -6,10 +7,8 @@ transformers
 tokenizers
 datasets
 
-# sudachi
+# tokenizers
 sudachitra
-
-# util
 pytextspan
 mecab-python3
 mojimoji
