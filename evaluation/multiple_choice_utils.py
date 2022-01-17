@@ -155,7 +155,7 @@ def evaluate_model(model, processed_dataset, tf_dataset, output_dir=None, stage=
         predictions = model.predict(tf_dataset)["logits"]
         predicted_class = np.argmax(predictions, axis=1)
 
-        output_file = output_dir / f"{stage}_results.tsv"
+        output_file = output_dir / f"{stage}_predictions.tsv"
         with open(output_file, "w") as writer:
             writer.write("index\tlabel\tprediction\n")
             for index, (label, item) in enumerate(zip(labels, predicted_class)):

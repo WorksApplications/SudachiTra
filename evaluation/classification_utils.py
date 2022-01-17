@@ -156,7 +156,7 @@ def evaluate_model(model, processed_dataset, tf_dataset, label2id, output_dir=No
 
     if output_dir is not None:
         id2label = {i: l for l, i in label2id.items()}
-        output_file = output_dir / f"{stage}_results.tsv"
+        output_file = output_dir / f"{stage}_predictions.tsv"
         with open(output_file, "w") as writer:
             writer.write("index\tlabel\tprediction\n")
             for index, (label, item) in enumerate(zip(labels, predicted_class)):

@@ -366,7 +366,7 @@ def evaluate_model(model, dataset, processed_dataset, data_args, output_dir=None
         predictions = post_processed_eval.predictions
         label_ids = post_processed_eval.label_ids
         id2answers = {d["id"]: d["answers"]["text"] for d in label_ids}
-        output_file = output_dir / f"{stage}_results.tsv"
+        output_file = output_dir / f"{stage}_predictions.tsv"
         with open(output_file, "w") as w:
             w.write("id\tanswer\tprediction\n")
             for p in predictions:
