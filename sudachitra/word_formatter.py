@@ -62,6 +62,8 @@ def word_formatter(word_form_type, sudachi_dict: Dictionary) -> Callable[[Morphe
             os.path.join(os.path.dirname(__file__), "resources/conjugation_type_table.json"),
             sudachi_dict)
 
+    conjugation_matcher = sudachi_dict.pos_matcher(lambda p: p[0] in CONJUGATIVE_POS)
+
     word_formatters = {
         WordFormTypes.SURFACE: (
             lambda m: m.surface()
@@ -73,10 +75,10 @@ def word_formatter(word_form_type, sudachi_dict: Dictionary) -> Callable[[Morphe
             lambda m: m.normalized_form()
         ),
         WordFormTypes.DICTIONARY_AND_SURFACE: (
-            lambda m: m.surface() if m.part_of_speech()[0] in CONJUGATIVE_POS else m.dictionary_form()
+            lambda m: m.surface() if conjugation_matcher(m) else m.dictionary_form()
         ),
         WordFormTypes.NORMALIZED_AND_SURFACE: (
-            lambda m: m.surface() if m.part_of_speech()[0] in CONJUGATIVE_POS else m.normalized_form()
+            lambda m: m.surface() if conjugation_matcher(m) else m.normalized_form()
         ),
         WordFormTypes.SURFACE_HALF_ASCII: (
             lambda m: m.surface().translate(HALF_ASCII_TRANSLATE_TABLE)
@@ -85,7 +87,7 @@ def word_formatter(word_form_type, sudachi_dict: Dictionary) -> Callable[[Morphe
             lambda m: m.dictionary_form().translate(HALF_ASCII_TRANSLATE_TABLE)
         ),
         WordFormTypes.DICTIONARY_AND_SURFACE_HALF_ASCII: (
-            lambda m: m.surface().translate(HALF_ASCII_TRANSLATE_TABLE) if m.part_of_speech()[0] in CONJUGATIVE_POS
+            lambda m: m.surface().translate(HALF_ASCII_TRANSLATE_TABLE) if conjugation_matcher(m)
             else m.dictionary_form().translate(HALF_ASCII_TRANSLATE_TABLE)
         ),
         WordFormTypes.NORMALIZED_CONJUGATION: (
