@@ -1,5 +1,5 @@
 # flameworks
-pytorch
+torch
 tensorflow
 
 # huggingface
