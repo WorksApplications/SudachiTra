@@ -129,7 +129,7 @@ def parse_args():
     parser.add_argument(dest="dataset_name", type=str,
                         help="Target dataset name. Set \"list\" to list available datasets.")
     parser.add_argument(dest="input_dir", type=str,
-                        help="Input directory. output_dir of evaluate_model.py.")
+                        help="Input directory. output_dir of run_evaluation.py.")
 
     parser.add_argument("-o", "--output", dest="output_file", type=str, default="./output.json",
                         help="Output directory.")
