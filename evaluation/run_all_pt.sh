@@ -14,31 +14,33 @@ MODEL_ROOT="./bert"
 DATASET_ROOT="./datasets"
 OUTPUT_ROOT="./out"
 
-# model to loop
+# model to search
 MODEL_NAMES=(
   "tohoku"
   "kyoto"
   "nict"
-  "chitra_normalized_and_surface"
-  "chitra_normalized"
   "chitra_surface"
+  "chitra_normalized_and_surface"
+  "chitra_normalized_conjugation"
+  "chitra_normalized"
 )
 
 DATASETS=("amazon" "rcqa" "kuci")
 
 # Hyperparameters from Appendix A.3, Devlin et al., 2019
-BATCHES=(32 16)
+BATCHES=(16 32)
 LRS=(5e-5 3e-5 2e-5)
-EPOCHS=(4 3 2)
+EPOCHS=(2 3 4)
 
 
 declare -A MODEL_DIRS=(
   ["tohoku"]="cl-tohoku/bert-base-japanese-whole-word-masking"
   ["kyoto"]="${MODEL_ROOT}/Japanese_L-12_H-768_A-12_E-30_BPE_WWM_transformers"
   ["nict"]="${MODEL_ROOT}/NICT_BERT-base_JapaneseWikipedia_32K_BPE"
-  ["chitra_normalized_and_surface"]="${MODEL_ROOT}/Wikipedia_normalized_and_surface/phase_2"
-  ["chitra_normalized"]="${MODEL_ROOT}/Wikipedia_normalized/phase_2"
   ["chitra_surface"]="${MODEL_ROOT}/Wikipedia_surface/phase_2"
+  ["chitra_normalized_and_surface"]="${MODEL_ROOT}/Wikipedia_normalized_and_surface/phase_2"
+  ["chitra_normalized_conjugation"]="${MODEL_ROOT}/Wikipedia_normalized_conjugation/phase_2"
+  ["chitra_normalized"]="${MODEL_ROOT}/Wikipedia_normalized/phase_2"
 )
 
 function set_model_args() {
@@ -46,7 +48,7 @@ function set_model_args() {
   DATASET=$2
   MODEL_DIR="${MODEL_DIRS[$1]}"
   DATASET_DIR="${DATASET_ROOT}/${DATASET}"
-  OUTPUT_DIR="${OUTPUT_ROOT}/${MODEL}_${DATASET}"
+  OUTPUT_DIR="${OUTPUT_ROOT}/${MODEL}_${DATASET}/${LR}_${BATCH}_${EPOCH}/"
   export MODEL DATASET MODEL_DIR DATASET_DIR OUTPUT_DIR
 
   # pretokenizer
@@ -94,8 +96,9 @@ command_run='( \
     --do_train                    \
     --do_eval                     \
     --do_predict                  \
+    --gradient_accumulation_steps $((BATCH / 8)) \
     --per_device_eval_batch_size  64 \
-    --per_device_train_batch_size ${BATCH} \
+    --per_device_train_batch_size 8 \
     --learning_rate               ${LR} \
     --num_train_epochs            ${EPOCH} \
     # --max_train_samples           100 \
@@ -107,17 +110,16 @@ command_run='( \
 mkdir -p logs
 /bin/true > logs/jobs.txt
 
-echo "start loop"
 for MODEL in ${MODEL_NAMES[@]}; do
-  set_model_args ${MODEL} ${DATASET}
-
   for BATCH in ${BATCHES[@]}; do
     for LR in ${LRS[@]}; do
       for EPOCH in ${EPOCHS[@]}; do
-        echo "remove huggingface datasets cache file"
+        # remove huggingface datasets cache file
         rm $HOME/.cache/huggingface/datasets/ -rf
 
-        export BATCH LR EPOCH
+        export MODEL BATCH LR EPOCH
+        set_model_args ${MODEL} ${DATASET}
+
         script -c "${command_echo}"
         script -c "${command_run}" logs/${MODEL}_${DATASET}_batch${BATCH}_lr${LR}_epochs${EPOCH}.log
     done

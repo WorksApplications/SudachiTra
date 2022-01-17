@@ -9,19 +9,20 @@ if [ $# -lt 1 ] ; then
 fi
 DATASET=$1
 
-# rm final "/"
+# set your own dir
 MODEL_ROOT="./bert"
 DATASET_ROOT="./datasets"
 OUTPUT_ROOT="./out"
 
-# model to loop
+# model to search
 MODEL_NAMES=(
   "tohoku"
   "kyoto"
   "nict"
-  "chitra_normalized_and_surface"
-  "chitra_normalized"
   "chitra_surface"
+  "chitra_normalized_and_surface"
+  "chitra_normalized_conjugation"
+  "chitra_normalized"
 )
 
 DATASETS=("amazon" "rcqa" "kuci")
@@ -29,17 +30,17 @@ DATASETS=("amazon" "rcqa" "kuci")
 # Hyperparameters from Appendix A.3, Devlin et al., 2019
 BATCHES=(16 32)
 LRS=(5e-5 3e-5 2e-5)
-# EPOCHS=(2 3 4)
-EPOCH=4
+EPOCHS=(4)
 
 
 declare -A MODEL_DIRS=(
   ["tohoku"]="cl-tohoku/bert-base-japanese-whole-word-masking"
   ["kyoto"]="${MODEL_ROOT}/Japanese_L-12_H-768_A-12_E-30_BPE_WWM_transformers"
   ["nict"]="${MODEL_ROOT}/NICT_BERT-base_JapaneseWikipedia_32K_BPE"
-  ["chitra_normalized_and_surface"]="${MODEL_ROOT}/Wikipedia_normalized_and_surface/phase_2"
-  ["chitra_normalized"]="${MODEL_ROOT}/Wikipedia_normalized/phase_2"
   ["chitra_surface"]="${MODEL_ROOT}/Wikipedia_surface/phase_2"
+  ["chitra_normalized_and_surface"]="${MODEL_ROOT}/Wikipedia_normalized_and_surface/phase_2"
+  ["chitra_normalized_conjugation"]="${MODEL_ROOT}/Wikipedia_normalized_conjugation/phase_2"
+  ["chitra_normalized"]="${MODEL_ROOT}/Wikipedia_normalized/phase_2"
 )
 
 function set_model_args() {
@@ -84,12 +85,11 @@ function set_model_args() {
 
 command_echo='( echo \
   "${MODEL}, ${DATASET}, ${MODEL_DIR}, ${DATASET_DIR}, ${OUTPUT_DIR}, " \
-  "${FROM_PT}, ${PRETOKENIZER}, " \
-  "${TOKENIZER}, ${WORD_TYPE}, ${UNIT_TYPE}, ${SUDACHI_VOCAB}, " \
+  "${FROM_PT}, ${PRETOKENIZER}, "${TOKENIZER}, ${WORD_TYPE}, ${UNIT_TYPE}, ${SUDACHI_VOCAB}, " \
   "${BATCH}, ${LR}, ${EPOCH}, " \
 )'
 
-command_train='( \
+command_run='( \
   python ${SCRIPT_DIR}evaluate_model.py \
     --model_name_or_path          ${MODEL} \
     --from_pt                     ${FROM_PT} \
@@ -103,6 +103,7 @@ command_train='( \
     --output_dir                  ${OUTPUT_DIR} \
     --do_train                    \
     --do_eval                     \
+    --do_predict                  \
     --per_device_eval_batch_size  64 \
     --per_device_train_batch_size ${BATCH} \
     --learning_rate               ${LR} \
@@ -112,38 +113,22 @@ command_train='( \
     # --max_test_samples            100 \
 )'
 
-command_eval='( \
-  python ${SCRIPT_DIR}evaluate_model.py \
-    --model_name_or_path          ${MODEL} \
-    --pretokenizer_name           ${PRETOKENIZER} \
-    --tokenizer_name              ${TOKENIZER} \
-    --word_form_type              ${WORD_TYPE} \
-    --split_unit_type             ${UNIT_TYPE} \
-    --sudachi_vocab_file          ${SUDACHI_VOCAB} \
-    --dataset_name                ${DATASET} \
-    --dataset_dir                 ${DATASET_DIR} \
-    --output_dir                  ${OUTPUT_DIR} \
-    --do_eval                     \
-    --do_predict                  \
-    --per_device_eval_batch_size  64 \
-)'
-
-
+# mkdir for log
 mkdir -p logs
 /bin/true > logs/jobs.txt
 
-echo "start loop"
 for MODEL in ${MODEL_NAMES[@]}; do
-  echo "remove huggingface datasets cache file"
-  rm $HOME/.cache/huggingface/datasets/ -rf
-
   for BATCH in ${BATCHES[@]}; do
     for LR in ${LRS[@]}; do
-      export MODEL BATCH LR EPOCH
-      set_model_args ${MODEL} ${DATASET}
-      script -c "${command_echo}"
-      script -c "${command_train}" logs/${MODEL}_batch${BATCH}_lr${LR}_epochs${EPOCH}.log
-      script -c "${command_eval}" logs/${MODEL}_batch${BATCH}_lr${LR}_epochs${EPOCH}_eval.log
+      for EPOCH in ${EPOCHS[@]}; do
+        # remove huggingface datasets cache file
+        rm $HOME/.cache/huggingface/datasets/ -rf
+
+        export MODEL BATCH LR EPOCH
+        set_model_args ${MODEL} ${DATASET}
+
+        script -c "${command_echo}"
+        script -c "${command_run}" logs/${MODEL}_batch${BATCH}_lr${LR}_epochs${EPOCH}.log
     done
   done
 done
