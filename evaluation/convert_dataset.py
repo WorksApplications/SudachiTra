@@ -5,8 +5,10 @@ from collections import defaultdict as ddict
 from pathlib import Path
 from typing import List, Dict
 
-from datasets import load_dataset, Dataset, DatasetDict
+from sudachitra.word_formatter import word_formatter, WordFormTypes
+from sudachipy import Dictionary, SplitMode
 import tokenizer_utils
+from datasets import load_dataset, Dataset, DatasetDict
 
 
 logger = logging.getLogger(__name__)
@@ -44,6 +46,7 @@ def convert_amazon(args):
     )
 
     text_columns = ["sentence1"]
+    datadict = normalize_texts(datadict, text_columns, args.word_form)
     datadict = tokenize_texts(datadict, text_columns,
                               args.tokenizer, args.dicdir, args.mecabrc)
     return datadict
@@ -73,10 +76,9 @@ def convert_kuci(args):
 
     datadict = load_dataset("json", data_files=datafiles)
 
-    if args.split_rate is not None:
-        logger.warning("KUCI dataset is splitted by author. skip split.")
-    if args.seed is not None:
-        logger.warning("KUCI dataset is splitted by author. skip shuffle.")
+    if args.seed is not None or args.split_rate is not None:
+        logger.warning("KUCI dataset is already splitted. "
+                       "skip shuffle and split")
 
     a2i = {c: i for i, c in enumerate("abcd")}
 
@@ -95,9 +97,9 @@ def convert_kuci(args):
                             remove_columns=[f"choice_{a}" for a in a2i.keys()])
 
     text_columns = ["context"] + [f"choice_{i}" for i in a2i.values()]
+    datadict = normalize_texts(datadict, text_columns, args.word_form)
     datadict = tokenize_texts(datadict, text_columns,
                               args.tokenizer, args.dicdir, args.mecabrc)
-
     return datadict
 
 
@@ -124,7 +126,7 @@ def convert_rcqa(args):
     dataset = load_dataset("json", data_files=str(dataset_file))["train"]
 
     if args.split_rate is None:
-        # split by timestamp, following NICT's experiment
+        logger.info("split data by timestamp, following NICT's experiment")
         datadict = DatasetDict({
             "train": dataset.filter(lambda row: row["timestamp"] < "2009"),
             "dev": dataset.filter(lambda row: "2009" <= row["timestamp"] < "2010"),
@@ -145,6 +147,45 @@ def convert_rcqa(args):
             outputs["doc_id"].extend(range(1, len(docs)+1))
         return outputs
     datadict = datadict.map(flatten_doc, batched=True).flatten()
+
+    if args.word_form != WordFormTypes.SURFACE:
+        # normalize texts manually, to handle answer properly
+        sudachi_dict = Dictionary(dict="core")
+        sudachi = sudachi_dict.create(SplitMode.C)
+        formatter = word_formatter(args.word_form, sudachi_dict)
+
+        def convert(ex):
+            ex["question"] = "".join(formatter(m)
+                                     for m in sudachi.tokenize(ex["question"]))
+
+            morphs = [(m.surface(), formatter(m))
+                      for m in sudachi.tokenize(ex["documents.text"])]
+            ex["documents.text"] = "".join(m[1] for m in morphs)
+
+            # search answer
+            answer = ex["answer"]
+            answer_nrm = "".join(formatter(m)
+                                 for m in sudachi.tokenize(answer))
+            if answer in ex["documents.text"]:
+                ex["answer"] = answer
+                return ex
+            if answer_nrm in ex["documents.text"]:
+                ex["answer"] = answer_nrm
+                return ex
+
+            # answer and corresponding context substring normalized differently
+            # this might output wrong str depending on tokenization
+            for ib in range(len(morphs)):
+                if answer not in "".join(m[0] for m in morphs[ib:]):
+                    ib -= 1
+                    break
+            for ie in range(ib+1, len(morphs)+1):
+                if answer in "".join(m[0] for m in morphs[ib:ie]):
+                    break
+            ex["answer"] = "".join(m[1] for m in morphs[ib:ie])
+            return ex
+
+        datadict = datadict.map(convert)
 
     text_columns = ["question", "documents.text", "answer"]
     datadict = tokenize_texts(datadict, text_columns,
@@ -188,6 +229,25 @@ def convert_rcqa(args):
         logger.info(
             f"data count for {key} split (after flatten): {len(datadict[key])}")
 
+    return datadict
+
+
+def normalize_texts(datadict: DatasetDict, text_columns: List[str], word_form: str):
+    """normalize columns using sudachitra with given word_form"""
+    if word_form == WordFormTypes.SURFACE:
+        return datadict
+
+    sudachi_dict = Dictionary(dict="core")
+    sudachi = sudachi_dict.create(SplitMode.C)
+    formatter = word_formatter(word_form, sudachi_dict)
+
+    def convert(examples):
+        for clm in text_columns:
+            examples[clm] = ["".join(formatter(m) for m in sudachi.tokenize(t))
+                             for t in examples[clm]]
+        return examples
+
+    datadict = datadict.map(convert, batched=True)
     return datadict
 
 
@@ -321,23 +381,24 @@ def parse_args():
                         help="Raw data file or directory contains it.")
     parser.add_argument("-o", "--output", dest="output_dir", type=str, default="./output",
                         help="Output directory.")
+    parser.add_argument("-f", "--output-format", type=str, default="json",
+                        help="Output data format. json or csv. json by default.")
+    parser.add_argument("--overwrite", action="store_true",
+                        help="Overwrite output files when they already exist.")
+    parser.add_argument("--word-form", dest="word_form", type=str, default=str(WordFormTypes.SURFACE),
+                        help=f"Word form type for sudachitra. If set, normalize text columns of data.")
     parser.add_argument("-t", "--tokenizer", type=str, default=None,
                         help=f"Tokenizer to split texts (wakati). Output raw texts if not set. "
                         "One of {TOKENIZER_NAMES}.")
+    parser.add_argument("--dicdir", type=str, default=None,
+                        help="dicdir option for mecab tokenizer.")
+    parser.add_argument("--mecabrc", type=str, default=None,
+                        help="rcfile option for mecab tokenizer.")
     parser.add_argument("-s", "--seed", type=int,
-                        help="Random seed for shuffle. DO NOT shuffle if not set.")
+                        help="Random seed for shuffle. SKIP shuffle if not set.")
     parser.add_argument("-r", "--split-rate", type=str,
                         help="Split rate for train/validation/test data. "
                         "By default use dataset specific split if exists, 8/1/1 otherwise.")
-    parser.add_argument("-f", "--output-format", type=str, default="json",
-                        help="Output data format. json by default.")
-
-    parser.add_argument("--overwrite", action="store_true",
-                        help="Overwrite output files when they already exist.")
-    parser.add_argument("--dicdir", type=str, default=None,
-                        help="dicdir for mecab tokenizer.")
-    parser.add_argument("--mecabrc", type=str, default=None,
-                        help="mecabrc for mecab tokenizer.")
 
     args = parser.parse_args()
     args.dataset_name = args.dataset_name.lower()
