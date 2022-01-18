@@ -1,6 +1,5 @@
 # flameworks
 torch
-tensorflow
 
 # huggingface
 transformers

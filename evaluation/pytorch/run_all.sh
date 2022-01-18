@@ -83,7 +83,7 @@ command_echo='( echo \
 )'
 
 command_run='( \
-  python ${SCRIPT_DIR}/run_evaluation_pt.py \
+  python ${SCRIPT_DIR}/run_evaluation.py \
     --model_name_or_path          ${MODEL} \
     --pretokenizer_name           ${PRETOKENIZER} \
     --tokenizer_name              ${TOKENIZER} \

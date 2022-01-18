@@ -1,0 +1,20 @@
+# flameworks
+tensorflow
+
+# huggingface
+transformers
+tokenizers
+datasets
+
+# tokenizers
+sudachitra
+pytextspan
+mecab-python3
+mojimoji
+pyknp
+
+# tohoku-bert
+fugashi
+unidic_lite
+ipadic
+

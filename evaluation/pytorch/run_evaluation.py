@@ -19,9 +19,9 @@ from transformers import (
 from transformers.file_utils import CONFIG_NAME, MULTIPLE_CHOICE_DUMMY_INPUTS, TF2_WEIGHTS_NAME
 from sudachitra.tokenization_bert_sudachipy import BertSudachipyTokenizer
 
-import classification_utils_pt as classification_utils
-import multiple_choice_utils_pt as multiple_choice_utils
-import qa_utils_pt as qa_utils
+import classification_utils
+import multiple_choice_utils
+import qa_utils
 import tokenizer_utils
 
 
