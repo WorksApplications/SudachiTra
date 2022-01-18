@@ -5,6 +5,7 @@ from collections import defaultdict as ddict
 from pathlib import Path
 from typing import List, Dict
 
+from sudachitra.input_string_normalizer import InputStringNormalizer
 from sudachitra.word_formatter import word_formatter, WordFormTypes
 from sudachipy import Dictionary, SplitMode
 import tokenizer_utils
@@ -152,20 +153,22 @@ def convert_rcqa(args):
         # normalize texts manually, to handle answer properly
         sudachi_dict = Dictionary(dict="core")
         sudachi = sudachi_dict.create(SplitMode.C)
+        normalizer = InputStringNormalizer(do_lower_case=False, do_nfkc=True)
         formatter = word_formatter(args.word_form, sudachi_dict)
 
-        def convert(ex):
-            ex["question"] = "".join(formatter(m)
-                                     for m in sudachi.tokenize(ex["question"]))
+        def normalize(t): return "".join(
+            formatter(m) for m in sudachi.tokenize(normalizer.normalize_str(t)))
 
-            morphs = [(m.surface(), formatter(m))
-                      for m in sudachi.tokenize(ex["documents.text"])]
+        def convert(ex):
+            ex["question"] = normalize(ex["question"])
+
+            morphs = [(m.surface(), formatter(m)) for m in sudachi.tokenize(
+                normalizer.normalize_str(ex["documents.text"]))]
             ex["documents.text"] = "".join(m[1] for m in morphs)
 
             # search answer
             answer = ex["answer"]
-            answer_nrm = "".join(formatter(m)
-                                 for m in sudachi.tokenize(answer))
+            answer_nrm = normalize(answer)
             if answer in ex["documents.text"]:
                 ex["answer"] = answer
                 return ex
@@ -239,12 +242,15 @@ def normalize_texts(datadict: DatasetDict, text_columns: List[str], word_form: s
 
     sudachi_dict = Dictionary(dict="core")
     sudachi = sudachi_dict.create(SplitMode.C)
+    normalizer = InputStringNormalizer(do_lower_case=False, do_nfkc=True)
     formatter = word_formatter(word_form, sudachi_dict)
+
+    def normalize(t): return "".join(
+        formatter(m) for m in sudachi.tokenize(normalizer.normalize_str(t)))
 
     def convert(examples):
         for clm in text_columns:
-            examples[clm] = ["".join(formatter(m) for m in sudachi.tokenize(t))
-                             for t in examples[clm]]
+            examples[clm] = [normalize(t) for t in examples[clm]]
         return examples
 
     datadict = datadict.map(convert, batched=True)
