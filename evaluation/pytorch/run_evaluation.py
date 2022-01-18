@@ -1,14 +1,11 @@
 import logging
 import sys
-import itertools as it
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional
 
-import numpy as np
 from transformers.trainer_utils import get_last_checkpoint
-import tensorflow as tf
 from datasets import load_dataset as hf_load_dataset
 from transformers import (
     AutoTokenizer,

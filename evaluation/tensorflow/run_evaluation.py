@@ -1,12 +1,10 @@
 import logging
 import sys
-import itertools as it
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional
 
-import numpy as np
 import tensorflow as tf
 from datasets import load_dataset as hf_load_dataset
 from transformers import (
