@@ -31,7 +31,7 @@ def summary_amazon(args):
         results[subdir.name] = {}
         for stage in Stages:
             results[subdir.name][stage] = {}
-            with (subdir / f"{stage.value}_results.tsv").open() as f:
+            with (subdir / f"{stage.value}_predictions.tsv").open() as f:
                 f.readline()  # skip headerline
                 ids, labels, preds = zip(*(line.strip().split("\t")
                                          for line in f.readlines()))
@@ -68,7 +68,7 @@ def summary_kuci(args):
         results[subdir.name] = {}
         for stage in Stages:
             results[subdir.name][stage] = {}
-            with (subdir / f"{stage.value}_results.tsv").open() as f:
+            with (subdir / f"{stage.value}_predictions.tsv").open() as f:
                 f.readline()  # skip headerline
                 ids, labels, preds = zip(*(line.strip().split("\t")
                                          for line in f.readlines()))
@@ -131,8 +131,8 @@ def parse_args():
     parser.add_argument(dest="input_dir", type=str,
                         help="Input directory. output_dir of run_evaluation.py.")
 
-    parser.add_argument("-o", "--output", dest="output_file", type=str, default="./output.json",
-                        help="Output directory.")
+    parser.add_argument("-o", "--output", dest="output_file", type=str, default="./output.csv",
+                        help="File to output summary. `output.csv` by default.")
     parser.add_argument("--overwrite", action="store_true",
                         help="Overwrite output files when they already exist.")
 

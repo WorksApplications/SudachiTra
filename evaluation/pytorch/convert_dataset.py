@@ -389,7 +389,7 @@ def parse_args():
                         help=f"Word form type for sudachitra. If set, normalize text columns of data.")
     parser.add_argument("-t", "--tokenizer", type=str, default=None,
                         help=f"Tokenizer to split texts (wakati). Output raw texts if not set. "
-                        "One of {TOKENIZER_NAMES}.")
+                        f"One of {TOKENIZER_NAMES}.")
     parser.add_argument("--dicdir", type=str, default=None,
                         help="dicdir option for mecab tokenizer.")
     parser.add_argument("--mecabrc", type=str, default=None,
@@ -398,7 +398,7 @@ def parse_args():
                         help="Random seed for shuffle. SKIP shuffle if not set.")
     parser.add_argument("-r", "--split-rate", type=str,
                         help="Split rate for train/validation/test data. "
-                        "By default use dataset specific split if exists, 8/1/1 otherwise.")
+                        "By default use dataset specific split, 8/1/1 otherwise.")
 
     args = parser.parse_args()
     args.dataset_name = args.dataset_name.lower()
