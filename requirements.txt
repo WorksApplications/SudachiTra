@@ -1,5 +1,6 @@
 logzero~=1.7.0
 progressbar2~=3.53.1
+pytextspan>=0.5.4
 tokenizers>=0.10.3
 transformers>=4.6.1
 sudachipy>=0.6.2
