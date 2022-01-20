@@ -19,6 +19,31 @@ from sudachipy import MorphemeList
 from sudachipy import SplitMode
 
 
+def get_split_mode(split_mode: str) -> SplitMode:
+    """
+    Returns the specified SplitMode.
+    "A", "B", or "C" can be specified.
+
+    Args:
+        split_mode (str): The mode of splitting.
+
+    Returns:
+        SplitMode: Unit to split text.
+
+    Raises:
+        ValueError: If `split_mode` is not defined in SudachiPy.
+    """
+    split_mode = split_mode.upper()
+    if split_mode == "C":
+        return SplitMode.C
+    elif split_mode == "B":
+        return SplitMode.B
+    elif split_mode == "A":
+        return SplitMode.A
+    else:
+        raise ValueError("Invalid `split_mode`: " + split_mode)
+
+
 class SudachipyWordTokenizer:
     """Runs tokenization with SudachiPy."""
 
@@ -44,15 +69,7 @@ class SudachipyWordTokenizer:
                 Sudachi dictionary type to be used for tokenization.
                 "small", "core", or "full" can be specified.
         """
-        split_mode = split_mode.upper()
-        if split_mode == "C":
-            self.split_mode = SplitMode.C
-        elif split_mode == "B":
-            self.split_mode = SplitMode.B
-        elif split_mode == "A":
-            self.split_mode = SplitMode.A
-        else:
-            raise ValueError("Invalid `split_mode`: " + split_mode)
+        self.split_mode = get_split_mode(split_mode)
 
         self.sudachi_dict = Dictionary(config_path=config_path, resource_dir=resource_dir, dict=dict_type)
         self.sudachi = self.sudachi_dict.create(self.split_mode)

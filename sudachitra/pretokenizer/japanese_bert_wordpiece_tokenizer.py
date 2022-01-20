@@ -23,11 +23,7 @@ from tokenizers.processors import BertProcessing
 from tokenizers.implementations import BertWordPieceTokenizer
 from tokenizers.implementations.base_tokenizer import BaseTokenizer
 
-from .sudachipy_pretokenizer import CustomPreTokenizer
 from ..input_string_normalizer import InputStringNormalizer
-
-
-CPT = TypeVar('CPT', bound=CustomPreTokenizer)
 
 
 class JapaneseBertWordPieceTokenizer(BaseTokenizer):
@@ -41,6 +37,8 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             mask_token: Union[str, AddedToken] = "[MASK]",
             do_lower_case: bool = False,
             do_nfkc: bool = False,
+            do_strip: bool = False,
+            disable_parallel: bool = False,
             wordpieces_prefix: str = "##",
     ):
         if vocab is not None:
@@ -60,7 +58,7 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         if tokenizer.token_to_id(str(mask_token)) is not None:
             tokenizer.add_special_tokens([str(mask_token)])
 
-        _normalizer = InputStringNormalizer(do_lower_case=do_lower_case, do_nfkc=do_nfkc)
+        _normalizer = InputStringNormalizer(do_strip=do_strip, do_lower_case=do_lower_case, do_nfkc=do_nfkc)
         tokenizer.normalizer = _normalizer.normalizer
         tokenizer.pre_tokenizer = BertPreTokenizer()
 
@@ -84,9 +82,11 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             "cls_token": cls_token,
             "pad_token": pad_token,
             "mask_token": mask_token,
+            "do_strip": do_strip,
             "do_lower_case": do_lower_case,
             "do_nfkc": do_nfkc,
             "wordpieces_prefix": wordpieces_prefix,
+            "disable_parallel": disable_parallel,
         }
 
         super().__init__(tokenizer, parameters)
@@ -114,17 +114,20 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             wordpieces_prefix: str = "##",
     ):
         """ Train the model using the given files """
-        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        if self._parameters["disable_parallel"]:
+            os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
         logger.info("Parameters for training")
+        logger.info("\tvocab_size: {}".format(vocab_size))
+        logger.info("\tdo_strip: {}".format(self._parameters["do_strip"]))
         logger.info("\tdo_lower_case: {}".format(self._parameters["do_lower_case"]))
         logger.info("\tdo_nfkc: {}".format(self._parameters["do_nfkc"]))
-        logger.info("\tvocab_size: {}".format(vocab_size))
         logger.info("\tmin_frequency: {}".format(min_frequency))
         logger.info("\tlimit_alphabet: {}".format(limit_alphabet))
         logger.info("\tinitial_alphabet: {}".format(",".join(initial_alphabet)))
         logger.info("\tspecial_tokens: {}".format(",".join(special_tokens)))
         logger.info("\twordpieces_prefix: {}".format(wordpieces_prefix))
+        logger.info("\tdisable_parallel: {}".format(self._parameters["disable_parallel"]))
 
         trainer = trainers.WordPieceTrainer(
             vocab_size=vocab_size,
@@ -162,10 +165,12 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             wordpieces_prefix: str = "##",
     ):
         """ Train the model using the given iterator """
-        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        if self._parameters["disable_parallel"]:
+            os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
         logger.info("Parameters for training")
         logger.info("\tvocab_size: {}".format(vocab_size))
+        logger.info("\tdo_strip: {}".format(self._parameters["do_strip"]))
         logger.info("\tdo_lower_case: {}".format(self._parameters["do_lower_case"]))
         logger.info("\tdo_nfkc: {}".format(self._parameters["do_nfkc"]))
         logger.info("\tmin_frequency: {}".format(min_frequency))
@@ -173,6 +178,7 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         logger.info("\tinitial_alphabet: {}".format(",".join(initial_alphabet)))
         logger.info("\tspecial_tokens: {}".format(",".join(special_tokens)))
         logger.info("\twordpieces_prefix: {}".format(wordpieces_prefix))
+        logger.info("\tdisable_parallel: {}".format(self._parameters["disable_parallel"]))
 
         trainer = trainers.WordPieceTrainer(
             vocab_size=vocab_size,
@@ -186,15 +192,6 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         self._tokenizer.train_from_iterator(iterator, trainer=trainer)
 
         logger.info("#Vocab: {}".format(self.get_vocab_size()))
-
-    def set_pre_tokenizer(self, custom_pre_tokenizer: CPT):
-        """
-        Sets the custom tokenizer as pre-tokenizer.
-
-        Args:
-            custom_pre_tokenizer (CPT): Custom tokenizer that implements `custom_split`.
-        """
-        self.pre_tokenizer = PreTokenizer.custom(custom_pre_tokenizer)
 
     def save(self, output_tokenizer_path: str, pretty: bool = False):
         """

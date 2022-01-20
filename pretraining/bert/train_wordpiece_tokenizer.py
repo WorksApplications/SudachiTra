@@ -16,8 +16,11 @@ import argparse
 import os
 from glob import glob
 
-from sudachitra.pretokenizer import JapaneseBertWordPieceTokenizer, SudachipyPreTokenizer
+from sudachitra import get_split_mode
+from sudachitra.pretokenizer import JapaneseBertWordPieceTokenizer
 from sudachitra.word_formatter import WordFormTypes
+from sudachitra.pretokenizer import pretokenizer_handler
+from sudachipy import Dictionary
 
 
 def main():
@@ -36,14 +39,17 @@ def main():
         limit_alphabet=args.limit_alphabet
     )
 
-    wp_tokenizer = JapaneseBertWordPieceTokenizer(do_lower_case=args.do_lower_case, do_nfkc=args.do_nfkc)
+    wp_tokenizer = JapaneseBertWordPieceTokenizer(do_strip=args.do_strip,
+                                                  do_lower_case=args.do_lower_case,
+                                                  do_nfkc=args.do_nfkc,
+                                                  disable_parallel=args.disable_parallel)
 
-    sudachi_pre_tokenizer = SudachipyPreTokenizer(
-        split_mode=args.split_mode,
-        dict_type=args.dict_type,
-        word_form_type=args.word_form_type
+    sudachi_dict = Dictionary(dict=args.dict_type)
+    sudachi_pre_tokenizer = sudachi_dict.pre_tokenizer(
+        mode=get_split_mode(args.split_mode),
+        handler=pretokenizer_handler(sudachi_dict, word_form_type=args.word_form_type)
     )
-    wp_tokenizer.set_pre_tokenizer(sudachi_pre_tokenizer)
+    wp_tokenizer.pre_tokenizer = sudachi_pre_tokenizer
 
     wp_tokenizer.train(files, **settings)
 
@@ -62,6 +68,8 @@ def get_args():
                         help='Input directory containing files to train tokenizer.')
 
     # Normalizers
+    parser.add_argument('--do_strip', action='store_true', default=False,
+                        help='Removes all whitespace characters on both sides of the input.')
     parser.add_argument('--do_lower_case', action='store_true', default=False,
                         help='Replaces all uppercase to lowercase.')
     parser.add_argument('--do_nfkc', action='store_true', default=False,
@@ -83,6 +91,10 @@ def get_args():
     parser.add_argument('--word_form_type', default='surface',
                         choices=WordFormTypes, type=WordFormTypes,
                         help='Word form type for each morpheme.')
+
+    # Wordpiece
+    parser.add_argument('--disable_parallel', action='store_true', default=False,
+                        help='Disable parallel tokenization.')
 
     # Output
     parser.add_argument('-o', '--output_dir',

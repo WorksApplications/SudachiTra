@@ -134,6 +134,7 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
     def __init__(
             self,
             vocab_file,
+            do_strip=False,
             do_lower_case=False,
             do_nfkc=False,
             do_word_tokenize=True,
@@ -177,9 +178,10 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
         elif word_tokenizer_type != "sudachipy":
             raise ValueError(f"Invalid word_tokenizer_type '{word_tokenizer_type}' is specified.")
 
+        self.do_strip = do_strip
         self.lower_case = do_lower_case
         self.nfkc = do_nfkc
-        self.normalizer = InputStringNormalizer(do_lower_case=self.do_lower_case, do_nfkc=self.nfkc)
+        self.normalizer = InputStringNormalizer(do_strip=self.do_strip, do_lower_case=self.do_lower_case, do_nfkc=self.nfkc)
 
         self.sudachipy_kwargs = copy.deepcopy(sudachipy_kwargs)
         self.word_tokenizer = SudachipyWordTokenizer(**(self.sudachipy_kwargs or {}))
