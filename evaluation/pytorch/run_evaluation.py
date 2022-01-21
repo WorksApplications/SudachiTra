@@ -64,8 +64,8 @@ class ModelArguments:
         default=None, metadata={"help": "Tokenizer to convert text space-separated before preprocess. "
                                 "\"juman\" (for Kyoto-U BERT) or \"mecab-juman\" (for NICT-BERT)."}
     )
-    from_pt: bool = field(
-        default=False, metadata={"help": "Set True when load PyTorch save file"}
+    from_tf: bool = field(
+        default=False, metadata={"help": "Set True when load tensorflow save file"}
     )
 
     # for sudachi tokenizer

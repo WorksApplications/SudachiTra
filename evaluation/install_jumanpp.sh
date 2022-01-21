@@ -17,7 +17,7 @@ cd jumanpp-2.0.0-rc3/build/
 
 apt install cmake -y
 
-cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$HOME/.local/usr
 make
 make install
 
