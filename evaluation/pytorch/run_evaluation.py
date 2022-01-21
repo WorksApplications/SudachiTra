@@ -13,7 +13,6 @@ from transformers import (
     TrainingArguments,
     set_seed,
 )
-from transformers.file_utils import CONFIG_NAME, MULTIPLE_CHOICE_DUMMY_INPUTS, TF2_WEIGHTS_NAME
 from sudachitra.tokenization_bert_sudachipy import BertSudachipyTokenizer
 
 import classification_utils
@@ -63,9 +62,6 @@ class ModelArguments:
     pretokenizer_name: Optional[str] = field(
         default=None, metadata={"help": "Tokenizer to convert text space-separated before preprocess. "
                                 "\"juman\" (for Kyoto-U BERT) or \"mecab-juman\" (for NICT-BERT)."}
-    )
-    from_tf: bool = field(
-        default=False, metadata={"help": "Set True when load tensorflow save file"}
     )
 
     # for sudachi tokenizer
