@@ -7,7 +7,10 @@ Also check the help of each scripts.
 
 `install_jumanpp.sh` is a helper script to install Juman++.
 
-Juman++ is neccessary to use `tokenizer_util.Juman`, which will be used to tokenize data for Kyoto-U BERT.
+Juman++ is neccessary to use `tokenizer_utils.Juman`, which will be used to tokenize data for Kyoto-U BERT.
+
+The default install location is `$HOME/.local/usr`.
+Modify the script as you want and set PATH.
 
 
 ## convert_dataset.py
@@ -73,7 +76,11 @@ python convert_dataset.py amazon --word-form normalized_and_surface
 
 `run_evaluation.py` is a script to run a single evaluation (with single model, dataset, hyper-parameters).
 
-Note: the model path for `--model_name_or_path` must contain `bert` to let `transformers.AutoModel` work correctly.
+Note:
+- The model path for `--model_name_or_path` must contain `bert` to let `transformers.AutoModel` work correctly.
+- You may need to clear huggingface datasets cache file before running this script:
+    - Dataset preprocessing will generate a cache file with random hash due to the our non-picklable conversion.
+    - The random hash become same if you use same seed due to the set_seed.
 
 ### example
 
