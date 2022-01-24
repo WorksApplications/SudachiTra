@@ -160,6 +160,8 @@ $ seq -f %02g 1 8|xargs -L 1 -I {} -P 8 python3 $WORK_DIR/create_pretraining_dat
 
 ### 5.Training
 
+#### TensorFlow models
+
 ```shell script
 $ pwd
 # /path/to/bert_sudachipy
@@ -180,7 +182,24 @@ $ WORK_DIR="../pretraining/bert"; py official/nlp/bert/run_pretraining.py \
 --warmup_steps=10000
 ```
 
+#### NVIDIA DeepLearningExamples
+
+nvidia-docker is used.
+Put the train data in this directory (SudachiTra/pretraining/bert/DeepLearningExamples/TensorFlow2/LanguageModeling/BERT/data).
+
+```shell script
+$ docker pull nvcr.io/nvidia/tensorflow:21.10-tf2-py3
+$ cd DeepLearningExamples/TensorFlow2/LanguageModeling/BERT
+$ bash scripts/docker/build.sh
+$ bash scripts/docker/launch.sh
+
+$ python3 data/bertPrep.py --action download --dataset google_pretrained_weights # Change the config if necessary.  ex. vocab_size
+$ bash scripts/run_pretraining_lamb.sh 176 22 8 7.5e-4 5e-4 tf32 true 4 2000 200 11374 100 64 192 base # Change the path in run_pretraining_lamb if necessary.
+```
+
 ### 6.Converting a model to pytorch format
+
+#### TensorFlow models
 
 ```shell script
 $ cd ../pretraining/bert/
@@ -188,4 +207,14 @@ $ python convert_original_tf2_checkpoint_to_pytorch.py \
 --tf_checkpoint_path ./bert_small/ \
 --config_file ./bert_small/bert_small_config.json \
 --pytorch_dump_path ./bert/bert_small/pytorch_model.bin
+```
+
+#### NVIDIA DeepLearningExamples
+
+```shell script
+$ cd SudachiTra/pretraining/bert/
+$ python convert_original_tf2_checkpoint_to_pytorch_nvidia.py \
+--tf_checkpoint_path /path/to/checkpoint \
+--config_file /path/to/bert_config.json \
+--pytorch_dump_path /path/to/pytorch_model.bin
 ```
