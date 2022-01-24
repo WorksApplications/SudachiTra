@@ -41,8 +41,7 @@ def main():
 
     wp_tokenizer = JapaneseBertWordPieceTokenizer(do_strip=args.do_strip,
                                                   do_lower_case=args.do_lower_case,
-                                                  do_nfkc=args.do_nfkc,
-                                                  disable_parallelism=args.disable_parallelism)
+                                                  do_nfkc=args.do_nfkc)
 
     sudachi_dict = Dictionary(dict=args.dict_type)
     sudachi_pre_tokenizer = sudachi_dict.pre_tokenizer(
@@ -51,7 +50,10 @@ def main():
     )
     wp_tokenizer.pre_tokenizer = sudachi_pre_tokenizer
 
+    if args.disable_parallelism:
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
     wp_tokenizer.train(files, **settings)
+    os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
     os.makedirs(args.output_dir, exist_ok=True)
     wp_tokenizer.save(os.path.join(args.output_dir, args.config_name))
@@ -95,7 +97,8 @@ def get_args():
     # Wordpiece
     parser.add_argument('--disable_parallelism', action='store_true', default=False,
                         help='This flag argument disables parallel processing only for wordpiece training. '
-                             'Note that parallel processing is disabled only during learning, not during other times.')
+                             'Note that this flag rewrites the value of a global environment variable '
+                             '(TOKENIZERS_PARALLELISM), so it may affect other programs as well.')
 
     # Output
     parser.add_argument('-o', '--output_dir',
