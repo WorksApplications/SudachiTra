@@ -41,13 +41,12 @@ def pretokenizer_handler(sudachi_dict: Dictionary, word_form_type: Optional[str]
     _word_formatter = word_formatter(word_form_type, sudachi_dict) if word_form_type != WordFormTypes.SURFACE else None
 
     def _handler(index: int, original: NormalizedString, morphemes: MorphemeList) -> List[NormalizedString]:
-        tokens = [m.surface() for m in morphemes if m.surface() != '']
-        normalized_strings = [original[m.begin():m.end()] for m in morphemes]
+        normalized_strings = [original[m.begin():m.end()] for m in morphemes if m.surface() != '']
 
-        if len(tokens) != len(normalized_strings):
-            raise ValueError(len(morphemes), len(tokens), len(normalized_strings), tokens, morphemes, normalized_strings)
         if word_form_type != WordFormTypes.SURFACE:
-            _ = [ns.replace(ns.normalized, _word_formatter(m)) for ns, m in zip(normalized_strings, morphemes)]
+            for ns, m in zip(normalized_strings, morphemes):
+                # replace the word form of the `original` string by using `NormalizedString.replace()` with side effect.
+                ns.replace(ns.normalized, _word_formatter(m))
 
         return normalized_strings
 
