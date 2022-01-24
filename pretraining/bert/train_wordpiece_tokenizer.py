@@ -42,7 +42,7 @@ def main():
     wp_tokenizer = JapaneseBertWordPieceTokenizer(do_strip=args.do_strip,
                                                   do_lower_case=args.do_lower_case,
                                                   do_nfkc=args.do_nfkc,
-                                                  disable_parallel=args.disable_parallel)
+                                                  disable_parallelism=args.disable_parallelism)
 
     sudachi_dict = Dictionary(dict=args.dict_type)
     sudachi_pre_tokenizer = sudachi_dict.pre_tokenizer(
@@ -93,8 +93,9 @@ def get_args():
                         help='Word form type for each morpheme.')
 
     # Wordpiece
-    parser.add_argument('--disable_parallel', action='store_true', default=False,
-                        help='Disable parallel tokenization.')
+    parser.add_argument('--disable_parallelism', action='store_true', default=False,
+                        help='This flag argument disables parallel processing only for wordpiece training. '
+                             'Note that parallel processing is disabled only during learning, not during other times.')
 
     # Output
     parser.add_argument('-o', '--output_dir',

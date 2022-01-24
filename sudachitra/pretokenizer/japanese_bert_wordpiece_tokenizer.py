@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Dict, Iterator, List, Optional, TypeVar, Union
+from typing import Callable, Dict, Iterator, List, Optional, Union
 
 from logzero import logger
 from tokenizers import Tokenizer, AddedToken, decoders, trainers
@@ -38,7 +38,7 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             do_lower_case: bool = False,
             do_nfkc: bool = False,
             do_strip: bool = False,
-            disable_parallel: bool = False,
+            disable_parallelism: bool = False,
             wordpieces_prefix: str = "##",
     ):
         if vocab is not None:
@@ -86,16 +86,28 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             "do_lower_case": do_lower_case,
             "do_nfkc": do_nfkc,
             "wordpieces_prefix": wordpieces_prefix,
-            "disable_parallel": disable_parallel,
+            "disable_parallelism": disable_parallelism,
         }
 
         super().__init__(tokenizer, parameters)
+
+    def disable_parallelism(func: Callable):
+        """
+        Disables parallel processing in the function to which this decorator is attached.
+        """
+        def _wrapper(self, *args, **kwargs):
+            if self._parameters["disable_parallelism"]:
+                os.environ["TOKENIZERS_PARALLELISM"] = "false"
+            func(self, *args, **kwargs)
+            os.environ["TOKENIZERS_PARALLELISM"] = "true"
+        return _wrapper
 
     @staticmethod
     def from_file(vocab: str, **kwargs):
         vocab = WordPiece.read_file(vocab)
         return BertWordPieceTokenizer(vocab, **kwargs)
 
+    @disable_parallelism
     def train(
             self,
             files: Union[str, List[str]],
@@ -114,9 +126,6 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             wordpieces_prefix: str = "##",
     ):
         """ Train the model using the given files """
-        if self._parameters["disable_parallel"]:
-            os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
         logger.info("Parameters for training")
         logger.info("\tvocab_size: {}".format(vocab_size))
         logger.info("\tdo_strip: {}".format(self._parameters["do_strip"]))
@@ -127,7 +136,7 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         logger.info("\tinitial_alphabet: {}".format(",".join(initial_alphabet)))
         logger.info("\tspecial_tokens: {}".format(",".join(special_tokens)))
         logger.info("\twordpieces_prefix: {}".format(wordpieces_prefix))
-        logger.info("\tdisable_parallel: {}".format(self._parameters["disable_parallel"]))
+        logger.info("\tdisable_parallelism: {}".format(self._parameters["disable_parallelism"]))
 
         trainer = trainers.WordPieceTrainer(
             vocab_size=vocab_size,
@@ -147,6 +156,7 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         self._tokenizer.train(files, trainer=trainer)
         logger.info("#Vocab: {}".format(self.get_vocab_size()))
 
+    @disable_parallelism
     def train_from_iterator(
             self,
             iterator: Union[Iterator[str], Iterator[Iterator[str]]],
@@ -165,9 +175,6 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
             wordpieces_prefix: str = "##",
     ):
         """ Train the model using the given iterator """
-        if self._parameters["disable_parallel"]:
-            os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
         logger.info("Parameters for training")
         logger.info("\tvocab_size: {}".format(vocab_size))
         logger.info("\tdo_strip: {}".format(self._parameters["do_strip"]))
@@ -178,7 +185,7 @@ class JapaneseBertWordPieceTokenizer(BaseTokenizer):
         logger.info("\tinitial_alphabet: {}".format(",".join(initial_alphabet)))
         logger.info("\tspecial_tokens: {}".format(",".join(special_tokens)))
         logger.info("\twordpieces_prefix: {}".format(wordpieces_prefix))
-        logger.info("\tdisable_parallel: {}".format(self._parameters["disable_parallel"]))
+        logger.info("\tdisable_parallelism: {}".format(self._parameters["disable_parallelism"]))
 
         trainer = trainers.WordPieceTrainer(
             vocab_size=vocab_size,
