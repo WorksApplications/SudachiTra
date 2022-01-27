@@ -12,97 +12,51 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import textspan
-from tokenizers import NormalizedString, PreTokenizedString
-from typing import List, Optional
+from sudachipy import Dictionary, MorphemeList
+from tokenizers import NormalizedString
+from typing import Callable, List, Optional
 
-from .. import SudachipyWordTokenizer
 from ..word_formatter import word_formatter, WordFormTypes
 
 
-class CustomPreTokenizer:
-    def custom_split(self, i: int, normalized_string: NormalizedString) -> List[NormalizedString]:
-        """
-        Tokenizes the input string and returns list of tokens.
+def pretokenizer_handler(sudachi_dict: Dictionary, word_form_type: Optional[str] = 'surface')\
+        -> Callable[[int, NormalizedString, MorphemeList], List[NormalizedString]]:
+    """
+    A handler for Dictionary.pre_tokenizer that transform MorphemeList into list to tokens.
 
-        Please override this function with your custom tokenizer.
-        Example. https://github.com/huggingface/tokenizers/blob/b24a2fc/bindings/python/examples/custom_components.py
+    Returns a handler to convert a morpheme to the specified word form.
 
-        Args:
-            i (int): Index.
-            normalized_string (NormalizedString): Input string.
+    Args:
+        sudachi_dict (Dictionary):
+            Sudachi dictionary.
+        word_form_type (:obj:`str`, `optional`, defaults to :obj:`"surface"`):
+            Word form type for each morpheme.
+            The values defined in WordFormTypes can be specified.
 
-        Returns:
-            List[NormalizedString]: List of normalized_strings.
-        """
-        raise NotImplementedError()
+    Returns:
+        Callable[[int, NormalizedString, MorphemeList], List[NormalizedString]]:
+            A handler for Dictionary.pre_tokenizer that transform MorphemeList into list to tokens.
+            https://worksapplications.github.io/sudachi.rs/python/api/sudachipy.html#sudachipy.Dictionary.pre_tokenizer
+    """
+    _word_formatter = word_formatter(word_form_type, sudachi_dict) if word_form_type != WordFormTypes.SURFACE else None
 
-    def pre_tokenize(self, pretok: PreTokenizedString):
-        pretok.split(self.custom_split)
+    def _handler(index: int, original: NormalizedString, morphemes: MorphemeList) -> List[NormalizedString]:
+        normalized_strings = []
 
-    @staticmethod
-    def split_normalized_string(normalized_string: NormalizedString, tokens: List[str]) -> List[NormalizedString]:
-        """
-        Splits normalized_string by tokens.
+        for m in morphemes:
+            begin_index = m.begin()
+            end_index = m.end()
+            if begin_index == end_index:  # empty token
+                continue
 
-        Args:
-            normalized_string (NormalizedString): Input string.
-            tokens (List[str]): List of surface words in a sentence.
+            normalized_string = original[begin_index:end_index]
 
-        Returns:
-            List[NormalizedString]: List of normalized_strings.
-        """
-        token_spans = textspan.get_original_spans(tokens, str(normalized_string).strip())
-        return [normalized_string[start:end] for token_span in token_spans for start, end in token_span]
+            if _word_formatter is not None:
+                # replace the word form of the `original` string by using `NormalizedString.replace()` with side effect.
+                normalized_string.replace(normalized_string.normalized, _word_formatter(m))
 
-
-class SudachipyPreTokenizer(SudachipyWordTokenizer, CustomPreTokenizer):
-    def __init__(
-        self,
-        split_mode: Optional[str] = "C",
-        dict_type: Optional[str] = "core",
-        word_form_type: Optional[str] = "surface",
-        **kwargs
-    ):
-        """
-        Constructs a SudachipyPreTokenizer.
-
-        Args:
-            split_mode (:obj:`str`, `optional`, defaults to :obj:`"C"`):
-                The mode of splitting.
-                "A", "B", or "C" can be specified.
-            dict_type (:obj:`str`, `optional`, defaults to :obj:`"core"`):
-                Sudachi dictionary type to be used for tokenization.
-                "small", "core", or "full" can be specified.
-            word_form_type (:obj:`str`, `optional`, defaults to :obj:`"surface"`):
-                Word form type for each morpheme.
-                The values defined in WordFormTypes can be specified.
-            **kwargs:
-                Sudachi dictionary parameters.
-        """
-        SudachipyWordTokenizer.__init__(self, split_mode=split_mode, dict_type=dict_type, **kwargs)
-        self.word_form_type = word_form_type
-        self.word_formatter = (word_formatter(self.word_form_type, self.sudachi_dict)
-                               if self.word_form_type != WordFormTypes.SURFACE else None)
-
-    def custom_split(self, i: int, normalized_string: NormalizedString) -> List[NormalizedString]:
-        """
-        Tokenizes with SudachiPy and returns its tokens.
-
-        Args:
-            i (int): Index.
-            normalized_string (NormalizedString): Input string.
-
-        Returns:
-            List[NormalizedString]: List of normalized_strings.
-        """
-        morphs = super().tokenize(str(normalized_string).strip())
-        tokens = [m.surface() for m in morphs if m.surface() != ""]
-        normalized_strings = self.split_normalized_string(normalized_string, tokens)
-        if len(tokens) != len(normalized_strings):
-            raise ValueError(len(morphs), len(tokens), len(normalized_strings), tokens, normalized_strings)
-
-        if self.word_form_type != WordFormTypes.SURFACE:
-            _ = [ns.replace(ns.normalized, self.word_formatter(m)) for ns, m in zip(normalized_strings, morphs)]
+            normalized_strings.append(normalized_string)
 
         return normalized_strings
+
+    return _handler
