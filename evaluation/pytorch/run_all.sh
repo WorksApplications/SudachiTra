@@ -10,6 +10,7 @@ fi
 DATASET=$1
 
 # set your own dir
+SCRIPT_DIR="./scripts"
 MODEL_ROOT="./bert"
 DATASET_ROOT="./datasets"
 OUTPUT_ROOT="./out"
@@ -82,9 +83,10 @@ command_echo='( echo \
   "${BATCH}, ${LR}, ${EPOCH}, " \
 )'
 
+export SCRIPT_PATH="${SCRIPT_DIR}/run_evaluation.py"
 command_run='( \
-  python ${SCRIPT_DIR}/run_evaluation.py \
-    --model_name_or_path          ${MODEL} \
+  python ${SCRIPT_PATH} \
+    --model_name_or_path          ${MODEL_DIR} \
     --pretokenizer_name           ${PRETOKENIZER} \
     --tokenizer_name              ${TOKENIZER} \
     --word_form_type              ${WORD_TYPE} \
@@ -117,11 +119,12 @@ for MODEL in ${MODEL_NAMES[@]}; do
         # remove huggingface datasets cache file
         rm $HOME/.cache/huggingface/datasets/ -rf
 
-        export MODEL BATCH LR EPOCH
+        export BATCH LR EPOCH
         set_model_args ${MODEL} ${DATASET}
 
         script -c "${command_echo}"
         script -c "${command_run}" logs/${MODEL}_${DATASET}_batch${BATCH}_lr${LR}_epochs${EPOCH}.log
+      done
     done
   done
 done

@@ -376,7 +376,7 @@ def preprocess_dataset(task_type, raw_datadict, data_args, tokenizer):
 
 def setup_trainer(task_type, model_args, data_args, training_args, raw_datadict, datadict, tokenizer):
     model_name = model_args.model_name_or_path
-    config_name = model_args.config_name
+    config_name = model_args.config_name or model_name
 
     if task_type == TaskType.CLASSIFICATION:
         return classification_utils.setup_trainer(
