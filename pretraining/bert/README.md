@@ -162,7 +162,7 @@ $ MAX_PROCS=8
 
 $ mkdir datasets_for_pretraining
 $ export $PYTHONPATH="$PYTHONPATH:./models"
-$ seq -f 1 ${TRAIN_FILE_NUM} | xargs -L 1 -I {} -P ${MAX_PROCS} python3 models/official/nlp/data/create_pretraining_data.py \
+$ seq 1 ${TRAIN_FILE_NUM} | xargs -L 1 -I {} -P ${MAX_PROCS} python3 models/official/nlp/data/create_pretraining_data.py \
 --input_file datasets/corpus_splitted_by_paragraph/ja_wiki40b_train.preprocessed.paragraph{}.txt \
 --output_file datasets_for_pretraining/pretraining_train_{}.tf_record \
 --do_nfkc \
