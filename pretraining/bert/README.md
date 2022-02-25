@@ -1,11 +1,10 @@
 # Training Sudachi BERT Models
 
-Currently, this repository only provides a script and recipe to train the [BERT](https://arxiv.org/abs/1810.04805) model.  
-Pretrained models will be released in the future.
+This repository also provides a script and recipe to train the [BERT](https://arxiv.org/abs/1810.04805) model.  
 
 ## Pretrained models
 
-TBD
+You can download the pretrained models from [README](../../README.md).
 
 ## Set up
 
