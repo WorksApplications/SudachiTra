@@ -62,7 +62,7 @@ def word_formatter(word_form_type, sudachi_dict: Dictionary) -> Callable[[Morphe
             os.path.join(os.path.dirname(__file__), "resources/conjugation_type_table.json"),
             sudachi_dict)
 
-    conjugation_matcher = sudachi_dict.pos_matcher(lambda p: p[0] in CONJUGATIVE_POS)
+    conjugation_matcher = sudachi_dict.pos_matcher(lambda p: p[0] in CONJUGATIVE_POS or p[0] == '接尾辞' and p[1] in {'動詞的', '形容詞的'})
 
     word_formatters = {
         WordFormTypes.SURFACE: (
