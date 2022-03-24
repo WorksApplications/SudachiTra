@@ -69,23 +69,8 @@ class ModelArguments:
         default=False, metadata={"help": "Set True when load PyTorch save file"}
     )
 
-    # for sudachi tokenizer
-    sudachi_vocab_file: Optional[str] = field(
-        default=None, metadata={"help": "Path to the sudachi tokenizer vocab file. Required if use sudachi"}
-    )
-    word_form_type: Optional[str] = field(
-        default=None, metadata={"help": "Word form type for sudachi tokenizer: surface/normalized/normalized_surface. Required if use sudachi"}
-    )
-    split_unit_type: Optional[str] = field(
-        default=None, metadata={"help": "Split unit type for sudachi tokenizer: A/B/C. Required if use sudachi"}
-    )
-
     def __post_init__(self):
         self.use_sudachi = self.tokenizer_name.lower() == "sudachi"
-        if self.use_sudachi:
-            assert self.sudachi_vocab_file is not None, "sudachi_vocab_file is required to use sudachi tokenizer"
-            assert self.word_form_type is not None, "word_form_type is required to use sudachi tokenizer"
-            assert self.split_unit_type is not None, "split_unit_type is required to use sudachi tokenizer"
 
         if self.pretokenizer_name is not None:
             pretok_list = ["identity", "juman", "mecab-juman"]
@@ -332,23 +317,8 @@ def setup_pretokenizer(model_args):
 
 def setup_tokenizer(model_args):
     if model_args.use_sudachi:
-        WORD_TYPE = model_args.word_form_type
-        UNIT_TYPE = model_args.split_unit_type
-        word_type_token = "normalized_and_surface" if WORD_TYPE == "normalized_surface" else WORD_TYPE
-        logger.info(
-            f"Use sudachi tokenizer ({WORD_TYPE}, {UNIT_TYPE}, {model_args.sudachi_vocab_file}).")
-
-        tokenizer = BertSudachipyTokenizer(
-            do_lower_case=False,
-            do_nfkc=True,  # default: False
-            do_word_tokenize=True,
-            do_subword_tokenize=True,
-            vocab_file=model_args.sudachi_vocab_file,
-            word_form_type=word_type_token,
-            sudachipy_kwargs={
-                "split_mode": UNIT_TYPE,
-                "dict_type": "core",
-            }
+        tokenizer = BertSudachipyTokenizer.from_pretrained(
+            model_args.model_name_or_path,
         )
     else:
         tokenizer = AutoTokenizer.from_pretrained(

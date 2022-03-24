@@ -1,14 +1,6 @@
 #!/bin/bash
 set -eu
 
-# check arg
-# current script work with single dataset
-if [ $# -lt 1 ] ; then
-    echo "Provide dataset name: [amazon, rcqa, kuci]."
-    exit 1
-fi
-DATASET=$1
-
 # set your own dir
 SCRIPT_DIR="./scripts"
 MODEL_ROOT="./bert"
@@ -33,7 +25,7 @@ BATCHES=(16 32)
 LRS=(5e-5 3e-5 2e-5)
 EPOCHS=(2 3 4)
 
-
+# set path to the model files
 declare -A MODEL_DIRS=(
   ["tohoku"]="cl-tohoku/bert-base-japanese-whole-word-masking"
   ["kyoto"]="${MODEL_ROOT}/Japanese_L-12_H-768_A-12_E-30_BPE_WWM_transformers"
@@ -65,22 +57,13 @@ function set_model_args() {
   TOKENIZER=${MODEL_DIR}
   if [ ${MODEL:0:6} = "chitra" ] ; then
     TOKENIZER="sudachi"
-    WORD_TYPE=${MODEL:7}
-    UNIT_TYPE="C"
-    SUDACHI_VOCAB="${MODEL_DIR}/vocab.txt"
-  else
-    # put non-null dummy string (will be ignored)
-    WORD_TYPE="none"
-    UNIT_TYPE="none"
-    SUDACHI_VOCAB="none"
   fi
-  export TOKENIZER WORD_TYPE UNIT_TYPE SUDACHI_VOCAB
+  export TOKENIZER
 }
 
 command_echo='( echo \
   "${MODEL}, ${DATASET}, ${MODEL_DIR}, ${DATASET_DIR}, ${OUTPUT_DIR}, " \
-  "${PRETOKENIZER}, ${TOKENIZER}, ${WORD_TYPE}, ${UNIT_TYPE}, ${SUDACHI_VOCAB}, " \
-  "${BATCH}, ${LR}, ${EPOCH}, " \
+  "${PRETOKENIZER}, ${TOKENIZER}, ${BATCH}, ${LR}, ${EPOCH}, " \
 )'
 
 export SCRIPT_PATH="${SCRIPT_DIR}/run_evaluation.py"
@@ -89,9 +72,6 @@ command_run='( \
     --model_name_or_path          ${MODEL_DIR} \
     --pretokenizer_name           ${PRETOKENIZER} \
     --tokenizer_name              ${TOKENIZER} \
-    --word_form_type              ${WORD_TYPE} \
-    --split_unit_type             ${UNIT_TYPE} \
-    --sudachi_vocab_file          ${SUDACHI_VOCAB} \
     --dataset_name                ${DATASET} \
     --dataset_dir                 ${DATASET_DIR} \
     --output_dir                  ${OUTPUT_DIR} \
@@ -112,18 +92,21 @@ command_run='( \
 mkdir -p logs
 /bin/true > logs/jobs.txt
 
-for MODEL in ${MODEL_NAMES[@]}; do
-  for BATCH in ${BATCHES[@]}; do
-    for LR in ${LRS[@]}; do
-      for EPOCH in ${EPOCHS[@]}; do
-        # remove huggingface datasets cache file
-        rm $HOME/.cache/huggingface/datasets/ -rf
+for DATASET in ${DATASETS[@]}; do
+  for MODEL in ${MODEL_NAMES[@]}; do
+    set_model_args ${MODEL} ${DATASET}
 
-        export BATCH LR EPOCH
-        set_model_args ${MODEL} ${DATASET}
+    for BATCH in ${BATCHES[@]}; do
+      for LR in ${LRS[@]}; do
+        for EPOCH in ${EPOCHS[@]}; do
+          # remove huggingface datasets cache file
+          rm $HOME/.cache/huggingface/datasets/ -rf
 
-        script -c "${command_echo}"
-        script -c "${command_run}" logs/${MODEL}_${DATASET}_batch${BATCH}_lr${LR}_epochs${EPOCH}.log
+          export BATCH LR EPOCH
+
+          script -c "${command_echo}" logs/echo.log
+          script -c "${command_run}" logs/${MODEL}_${DATASET}_batch${BATCH}_lr${LR}_epochs${EPOCH}.log
+        done
       done
     done
   done
