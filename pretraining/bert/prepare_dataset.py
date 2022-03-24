@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import argparse
+import os
 import tensorflow_datasets as tfds
 from bunkai import Bunkai
-from typing import List
+from progressbar import progressbar as tqdm
+from tensorflow_datasets.core import DatasetInfo
+from typing import List, Tuple
 
 
 TARGET_DATASETS = ['train', 'validation', 'test']
@@ -43,27 +46,57 @@ def split_article(article_text: str) -> List[List[str]]:
     return paragraphs
 
 
-def main():
-    args = get_args()
+def download_wiki40b_corpus(target: str) -> Tuple[DatasetInfo, List[str]]:
+    """
+    Downloads the target corpus and disambiguates sentence boundaries for sentences in the corpus.
 
-    ds, ds_info = tfds.load(name='wiki40b/ja', split=['train', 'validation', 'test'], with_info=True)
+    Args:
+        target (str): Target dataset name.
+
+    Returns:
+        (tuple): tuple containing:
+            ds_info (DatasetInfo): Dataset information for target corpus.
+            all_sentences (List[str]): Sentences in the target corpus.
+    """
+
+    ds, ds_info = tfds.load(name='wiki40b/ja', split=TARGET_DATASETS, with_info=True)
 
     bunkai = Bunkai()
 
-    for line in tfds.as_dataframe(ds[TARGET_DATASETS.index(args.target)], ds_info).itertuples():
+    all_sentences = []
+    for line in tqdm(tfds.as_dataframe(ds[TARGET_DATASETS.index(target)], ds_info).itertuples()):
         paragraphs = split_article(line.text.decode('utf-8'))
-        print(START_ARTICLE_DELIMITER)
+        all_sentences.append(START_ARTICLE_DELIMITER)
         for paragraph in paragraphs:
-            print(START_PARAGRAPH_DELIMITER)
+            all_sentences.append(START_PARAGRAPH_DELIMITER)
             for sentences in paragraph:
                 for sentence in bunkai(sentences):
                     if sentence:
-                        print(sentence)
+                        all_sentences.append(sentence)
+
+    return ds_info, all_sentences
+
+
+def main():
+    args = get_args()
+
+    dataset_info, corpus_sentences = download_wiki40b_corpus(args.target)
+
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    with open(os.path.join(args.output_dir, 'dataset_info_{}.json'.format(args.target)), 'w') as f:
+        f.write(dataset_info.as_json)
+
+    with open(os.path.join(args.output_dir, 'ja_wiki40b_{}.txt'.format(args.target)), 'w') as f:
+        for sentence in corpus_sentences:
+            f.write(sentence + '\n')
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Download and parse target dataset.')
     parser.add_argument('-t', '--target', choices=['train', 'validation', 'test'], help='Target dataset.')
+    parser.add_argument('-o', '--output_dir', required=True,
+                        help='The path to the target directory in which to save a corpus file and a config file.')
 
     args = parser.parse_args()
 

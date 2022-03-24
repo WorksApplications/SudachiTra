@@ -1,5 +1,6 @@
 # coding=utf-8
 # Copyright 2018 The HuggingFace Inc. team.
+# Copyright 2021 Masatoshi Suzuki (@singletongue)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,11 +40,39 @@ logger = logging.getLogger(__name__)
 def load_tf2_weights_in_bert(model, tf_checkpoint_path, config):
     tf_checkpoint_path = os.path.abspath(tf_checkpoint_path)
 
-    logger.info("Converting TensorFlow checkpoint from {}".format(tf_checkpoint_path))
+    logger.info("Converting TensorFlow checkpoint from {}".format(
+        tf_checkpoint_path))
 
     for full_name, shape in tf.train.list_variables(tf_checkpoint_path):
         pointer = model
         trace = []
+        print(full_name, shape)
+        if full_name == "model/layer_with_weights-0/layer_with_weights-0/layer_with_weights-0/embeddings/.ATTRIBUTES/VARIABLE_VALUE":
+            trace.extend(["cls", "predictions", "decoder", "weight"])
+            pointer = getattr(pointer, "cls")
+            pointer = getattr(pointer, "predictions")
+            pointer = getattr(pointer, "decoder")
+            pointer = getattr(pointer, "weight")
+            array = tf.train.load_variable(tf_checkpoint_path, full_name)
+            print(trace)
+            trace = ".".join(trace)
+            if re.match(r"(\S+)\.attention\.self\.(key|value|query)\.(bias|weight)", trace) or \
+                    re.match(r"(\S+)\.attention\.output\.dense\.weight", trace):
+                array = array.reshape(pointer.data.shape)
+            if "kernel" in full_name:
+                array = array.transpose()
+
+            if pointer.shape == array.shape:
+                pointer.data = torch.from_numpy(array)
+            else:
+                # logger.warning(f"Skipping shape mismatch in layer : {full_name}")
+                # continue
+                raise ValueError(
+                    f"Shape mismatch in layer {full_name}: "
+                    f"Model expects shape {pointer.shape} but layer contains shape: {array.shape}"
+                )
+            pointer = model
+            trace = []
 
         if "optimizer/" in full_name:
             logger.info("Skipping optimizer weights: {}".format(full_name))
@@ -60,7 +89,8 @@ def load_tf2_weights_in_bert(model, tf_checkpoint_path, config):
             logger.warning(f"Skipping unknown weight name: {full_name}")
             continue
 
-        logger.info("Loading TF weight {} with shape {}".format(full_name, shape))
+        logger.info(
+            "Loading TF weight {} with shape {}".format(full_name, shape))
 
         name = split_name.pop(0)
         if name == "layer_with_weights-0":
@@ -105,12 +135,6 @@ def load_tf2_weights_in_bert(model, tf_checkpoint_path, config):
                     pointer = getattr(pointer, "pooler")
                     pointer = getattr(pointer, "dense")
         elif name == "layer_with_weights-1":
-            # next sentence prediction
-
-            trace.extend(["cls", "seq_relationship"])
-            pointer = getattr(pointer, "cls")
-            pointer = getattr(pointer, "seq_relationship")
-        elif name == "layer_with_weights-2":
             # masked lm
 
             trace.extend(["cls", "predictions"])
@@ -118,11 +142,11 @@ def load_tf2_weights_in_bert(model, tf_checkpoint_path, config):
             pointer = getattr(pointer, "predictions")
 
             name = split_name.pop(0)
-            if name == "dense":
+            if name in ["dense", "layer_with_weights-0"]:
                 trace.extend(["transform", "dense"])
                 pointer = getattr(pointer, "transform")
                 pointer = getattr(pointer, "dense")
-            elif name == "layer_norm":
+            elif name in ["layer_norm", "layer_with_weights-1"]:
                 trace.extend(["transform", "LayerNorm"])
                 pointer = getattr(pointer, "transform")
                 pointer = getattr(pointer, "LayerNorm")
@@ -130,9 +154,16 @@ def load_tf2_weights_in_bert(model, tf_checkpoint_path, config):
                 trace.extend(["decoder", "weight"])
                 pointer = getattr(pointer, "decoder")
                 pointer = getattr(pointer, "weight")
-            elif name == "output_bias.Sbias":
-                trace.extend(["bias"])
-                pointer = getattr(pointer, "bias")
+            elif name in ["output_bias.Sbias", "layer_with_weights-2"]:
+                # trace.extend(["bias"])
+                # pointer = getattr(pointer, "bias")
+                pass
+        elif name == "layer_with_weights-2":
+            # next sentence prediction
+
+            trace.extend(["cls", "seq_relationship"])
+            pointer = getattr(pointer, "cls")
+            pointer = getattr(pointer, "seq_relationship")
         else:
             logger.warning(f"Skipping unknown weight name: {full_name}")
             continue
@@ -141,9 +172,8 @@ def load_tf2_weights_in_bert(model, tf_checkpoint_path, config):
         for name in split_name:
             if name == "_attention_layer":
                 # self-attention layer
-                trace.extend(["attention", "self"])
+                trace.append("attention")
                 pointer = getattr(pointer, "attention")
-                pointer = getattr(pointer, "self")
             elif name == "_attention_layer_norm":
                 # output attention norm
                 trace.extend(["attention", "output", "LayerNorm"])
@@ -173,15 +203,18 @@ def load_tf2_weights_in_bert(model, tf_checkpoint_path, config):
                 pointer = getattr(pointer, "LayerNorm")
             elif name == "_key_dense":
                 # attention key
-                trace.append("key")
+                trace.extend(["self", "key"])
+                pointer = getattr(pointer, "self")
                 pointer = getattr(pointer, "key")
             elif name == "_query_dense":
                 # attention query
-                trace.append("query")
+                trace.extend(["self", "query"])
+                pointer = getattr(pointer, "self")
                 pointer = getattr(pointer, "query")
             elif name == "_value_dense":
                 # attention value
-                trace.append("value")
+                trace.extend(["self", "value"])
+                pointer = getattr(pointer, "self")
                 pointer = getattr(pointer, "value")
             elif name == "dense":
                 # attention value
@@ -204,6 +237,7 @@ def load_tf2_weights_in_bert(model, tf_checkpoint_path, config):
         array = tf.train.load_variable(tf_checkpoint_path, full_name)
 
         # for certain layers reshape is necessary
+        print(trace)
         trace = ".".join(trace)
         if re.match(r"(\S+)\.attention\.self\.(key|value|query)\.(bias|weight)", trace) or \
            re.match(r"(\S+)\.attention\.output\.dense\.weight", trace):
@@ -214,13 +248,16 @@ def load_tf2_weights_in_bert(model, tf_checkpoint_path, config):
         if pointer.shape == array.shape:
             pointer.data = torch.from_numpy(array)
         else:
+            # logger.warning(f"Skipping shape mismatch in layer : {full_name}")
+            # continue
             raise ValueError(
                 f"Shape mismatch in layer {full_name}: "
                 f"Model expects shape {pointer.shape} but layer contains shape: {array.shape}"
             )
 
-        logger.info(f"Successfully set variable {full_name} to PyTorch layer {trace}")
-
+        logger.info(
+            f"Successfully set variable {full_name} to PyTorch layer {trace}")
+    print(model)
     return model
 
 
@@ -257,4 +294,5 @@ if __name__ == "__main__":
         help="Path to the output PyTorch model (must include filename).",
     )
     args = parser.parse_args()
-    convert_tf2_checkpoint_to_pytorch(args.tf_checkpoint_path, args.config_file, args.pytorch_dump_path)
+    convert_tf2_checkpoint_to_pytorch(
+        args.tf_checkpoint_path, args.config_file, args.pytorch_dump_path)

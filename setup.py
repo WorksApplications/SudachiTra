@@ -25,14 +25,22 @@ setup(
     license="Apache-2.0",
     author="Works Applications",
     author_email="sudachi@worksap.co.jp",
-    packages=find_packages(exclude=['tests']),
+    packages=find_packages(include=['sudachitra']),
     install_requires=[
         "logzero~=1.7.0",
-        "progressbar2~=3.53.1",
         "tokenizers>=0.10.3",
         "transformers>=4.6.1",
-        "sudachipy>=0.6.0",
+        "sudachipy>=0.6.2",
         "sudachidict_core>=20210802"
     ],
+    extras_require={
+        "pretrain":[
+            "progressbar2~=3.53.1",
+            "bunkai~=1.4.3",
+            "pytextspan>=0.5.4",
+            "tensorflow>=2.5.0",
+            "tensorflow_datasets>=4.3.0"
+        ]
+    },
     include_package_data=True
 )

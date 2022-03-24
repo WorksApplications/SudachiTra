@@ -19,7 +19,8 @@ from logzero import logger
 from progressbar import progressbar as tqdm
 
 from .. import SudachipyWordTokenizer
-from ..tokenization_bert_sudachipy import pos_substitution_format, WORD_FORM_TYPES
+from ..tokenization_bert_sudachipy import pos_substitution_format
+from ..word_formatter import word_formatter
 
 
 class PartOfSpeechSubstitutionTokenizer(SudachipyWordTokenizer):
@@ -42,13 +43,13 @@ class PartOfSpeechSubstitutionTokenizer(SudachipyWordTokenizer):
                 "small", "core", or "full" can be specified.
             word_form_type (:obj:`str`, `optional`, defaults to :obj:`"surface"`):
                 Word form type for each morpheme.
-                "surface", "dictionary", "normalized", "dictionary_and_surface", or "normalized_and_surface" can be specified.
+                The values defined in WordFormTypes can be specified.
             **kwargs:
                 Sudachi dictionary parameters.
         """
         super().__init__(split_mode=split_mode, dict_type=dict_type, **kwargs)
         self.word_form_type = word_form_type
-        self.word_formatter = WORD_FORM_TYPES[self.word_form_type]
+        self.word_formatter = word_formatter(self.word_form_type, self.sudachi_dict)
         self._vocab = None
 
     def get_word2freq_and_pos(self, files: List[str]) -> Tuple[Dict[str, int], List[str]]:

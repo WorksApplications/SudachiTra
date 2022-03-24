@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .sudachipy_word_tokenizer import SudachipyWordTokenizer, get_split_mode
-from .tokenization_bert_sudachipy import BertSudachipyTokenizer
-from .tokenization_electra_sudachipy import ElectraSudachipyTokenizer
+from enum import Enum
+
+
+class DocumentNormalizerName(str, Enum):
+    CONCAT_SHORT_SENTENCE = 'concat_short_sentence'
+
+    def __str__(self):
+        return self.value

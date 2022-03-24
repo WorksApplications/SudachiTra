@@ -12,17 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from tokenizers.normalizers import Lowercase, NFKC, Sequence
+from tokenizers.normalizers import Lowercase, NFKC, Sequence, Strip
 
 
 class InputStringNormalizer(object):
-    def __init__(self, do_lower_case=False, do_nfkc=False):
+    def __init__(self, do_strip=False, do_lower_case=False, do_nfkc=False):
+        self.do_strip: bool = do_strip
         self.do_lower_case: bool = do_lower_case
         self.do_nfkc: bool = do_nfkc
         self._normalizer: Sequence = self._init_normalizer()
 
     def _init_normalizer(self) -> Sequence:
         normalizers = []
+        if self.do_strip:
+            normalizers.append(Strip())
         if self.do_lower_case:
             normalizers.append(Lowercase())
         if self.do_nfkc:
