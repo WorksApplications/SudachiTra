@@ -2,8 +2,60 @@
 
 This folder contains scripts to evaluate models.
 
-Refer `evaluation.md` for our evaluation experiments.
+# Evaluation methods
 
+## Performance with downstream tasks
+
+Evaluate model with 3 tasks.
+
+### Tasks
+
+- The Multilingual Amazon Reviews Corpus (Amazon)
+  - https://registry.opendata.aws/amazon-reviews-ml/
+  - Text classification task / 文章分類
+- 京都大学常識推論データセット (KUCI)
+  - https://nlp.ist.i.kyoto-u.ac.jp/?KUCI
+  - Multiple choice task / 常識推論
+- 解答可能性付き読解データセット (RCQA)
+  - http://www.cl.ecei.tohoku.ac.jp/rcqa/
+  - Question answering task (SQuAD2.0 format) / 読解
+
+### Steps
+
+Example for Amazon task (replace `amazon` with `kuci` or `rcqa` for other tasks):
+
+```bash
+# Generate dataset files for evaluation.
+# Download raw data first for KUCI and RCQA.
+python convert_dataset.py amazon --output ./datasets/amazon
+# python convert_dataset.py kuci --input /path/to/input  --output ./datasets/kuci
+
+# Run finetuning/prediction with hyper parameter search.
+# `run_all.sh` runs with all 3 datasets and parameters.
+# Place model files under `./bert/`.
+./run_all.sh
+
+# Correct test result file (for chitra surface model).
+python summary_results.py amazon ./out/chitra_surface_amazon/ --output ./summary.csv
+```
+
+## Robustness to the text normalization
+
+Run evaluation with test data whose texts are normalized.
+
+Ideal model should be robust to this change (outputs remain same after nomralization).
+
+### Steps
+
+```bash
+# Generate normalized dataset.
+python convert_dataset.py amazon --output ./datasets_normalized/amazon
+
+# Following steps are same to the model evaluation, but need to modify
+# dataset dir name in `run_all.sh` to `datasets_normalized` in this case.
+```
+
+Rest steps are same.
 
 # Script Usage
 
@@ -18,7 +70,6 @@ Juman++ is neccessary to use `tokenizer_utils.Juman`, which will be used to toke
 
 The default install location is `$HOME/.local/usr`.
 Modify the script as you want and set PATH.
-
 
 ## convert_dataset.py
 
@@ -43,7 +94,6 @@ python convert_dataset.py rcqa -i ./all-v1.0.json.gz -o ./rcqa
 # Download raw data from https://nlp.ist.i.kyoto-u.ac.jp/?KUCI and untar.
 python convert_dataset.py kuci -i ./KUCI/ -o ./kuci
 ```
-
 
 ### tokenize texts (wakati)
 
@@ -78,16 +128,18 @@ We used `normalized_and_surface` for our experiment.
 python convert_dataset.py amazon --word-form normalized_and_surface
 ```
 
-
 ## run_evaluation.py
 
 `run_evaluation.py` is a script to run a single evaluation (with single model, dataset, hyper-parameters).
 
 Note:
+
 - The model path for `--model_name_or_path` must contain `bert` to let `transformers.AutoModel` work correctly.
+- To use sudachi tokenizer, set `sudachi` for `tokenizer_name`.
+  - Script assumes that `vocab.txt` and `tokenizer_config.json` are in the model path.
 - You may need to clear huggingface datasets cache file before running this script:
-    - Dataset preprocessing will generate a cache file with random hash due to the our non-picklable conversion.
-    - The random hash become same if you use same seed due to the set_seed.
+  - Dataset preprocessing will generate a cache file with random hash due to the our non-picklable conversion.
+  - The random hash become same if you use same seed due to the set_seed.
 
 ### example
 
@@ -99,9 +151,6 @@ python ./run_evaluation.py \
     --from_pt                     [set true if load pytorch model] \
     --pretokenizer_name           [set "juman" or "mecab-juman" to tokenize text before using HF-tokenizer] \
     --tokenizer_name              [set "sudachi" to use SudachiTokenizer] \
-    --word_form_type              [arg for sudachi tokenizer] \
-    --split_unit_type             [arg for sudachi tokenizer] \
-    --sudachi_vocab_file          [arg for sudachi tokenizer] \
     --dataset_name                ["amazon" or "rcqa" or "kuci"] \
     --dataset_dir                 [./path/to/dataset/dir] \
     --output_dir                  [./path/to/output] \
@@ -160,9 +209,6 @@ Run whole steps with chitra (normalized_and_surface) and RCQA dataset.
 python ./run_evaluation.py \
     --model_name_or_path          ./path/to/chitra/model \
     --tokenizer_name              "sudachi" \
-    --word_form_type              "normalized_and_surface" \
-    --split_unit_type             "C" \
-    --sudachi_vocab_file          ./path/to/vocab/file \
     --dataset_name                "rcqa" \
     --dataset_dir                 ./datasets/rcqa \
     --output_dir                  ./output/chitra_rcqa \
@@ -175,24 +221,18 @@ python ./run_evaluation.py \
     --num_train_epochs            4 \
 ```
 
-
 ## run_all.sh
 
 `run_all.sh` is a script to run `run_evaluation.py` with different models and hyper parameters.
 
-This assumes all model files are placed in the same directory (and named `bert` for `run_evaluation.py`).
-You will need to modify some variables in the scripts for your environment.
+This assumes all model files are placed in the same directory (and named `bert` for `run_evaluation.py`), and all 3 datasets are placed in another directory.
+You will need to set those directories in the script for your environment.
 
 Note: As a side effect, this will remove huggingface datasets cache files.
 
 ```bash
-# template
-./run_all.sh [dataset_name]
-
-# run with amazon dataset
-./run_all.sh amazon
+./run_all.sh
 ```
-
 
 ## summary_results.py
 
@@ -208,7 +248,6 @@ input_dir
 │   └── [test result file]
 ...
 ```
-
 
 ```bash
 python ./summary_results.py amazon -i ./out/chitra_amazon
