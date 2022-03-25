@@ -94,8 +94,6 @@ mkdir -p logs
 
 for DATASET in ${DATASETS[@]}; do
   for MODEL in ${MODEL_NAMES[@]}; do
-    set_model_args ${MODEL} ${DATASET}
-
     for BATCH in ${BATCHES[@]}; do
       for LR in ${LRS[@]}; do
         for EPOCH in ${EPOCHS[@]}; do
@@ -103,6 +101,7 @@ for DATASET in ${DATASETS[@]}; do
           rm $HOME/.cache/huggingface/datasets/ -rf
 
           export BATCH LR EPOCH
+          set_model_args ${MODEL} ${DATASET}
 
           script -c "${command_echo}" logs/echo.log
           script -c "${command_run}" logs/${MODEL}_${DATASET}_batch${BATCH}_lr${LR}_epochs${EPOCH}.log
