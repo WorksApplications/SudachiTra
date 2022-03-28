@@ -45,7 +45,7 @@ def setup_args(data_args, raw_datadict):
     return data_args
 
 
-def pretokenize_texts(datadict, pretok, data_args):
+def pretokenize_texts(raw_datadict, pretok, data_args):
     question_column = data_args.question_column
     context_column = data_args.context_column
     answer_column = data_args.answer_column
@@ -74,8 +74,8 @@ def pretokenize_texts(datadict, pretok, data_args):
 
         return examples
 
-    datadict = datadict.map(subfunc, batched=True)
-    return datadict
+    raw_datadict = raw_datadict.map(subfunc, batched=True)
+    return raw_datadict
 
 
 def preprocess_dataset(raw_datadict, data_args, tokenizer, max_length):
@@ -215,7 +215,11 @@ def preprocess_dataset(raw_datadict, data_args, tokenizer, max_length):
     for key, subfunc in (("train", subfunc_train), ("validation", subfunc_test), ("test", subfunc_test)):
         if key in raw_datadict:
             processed[key] = raw_datadict[key].map(
-                subfunc, batched=True, remove_columns=data_args.column_names)
+                subfunc,
+                batched=True,
+                remove_columns=data_args.column_names,
+                load_from_cache_file=not data_args.overwrite_cache,
+            )
     processed = DatasetDict(processed)
 
     return processed
@@ -262,11 +266,12 @@ def _construct_offset_mapping(questions, contexts, tokenized, tokenizer):
     return offset_mapping
 
 
-def setup_trainer(model_name_or_path, config_name, raw_datadict, datadict, data_args, training_args, tokenizer):
+def setup_trainer(model_name_or_path, config_name, raw_datadict, datadict, data_args, training_args, tokenizer, from_tf=False):
     config = AutoConfig.from_pretrained(config_name or model_name_or_path)
     model = AutoModelForQuestionAnswering.from_pretrained(
         model_name_or_path,
         config=config,
+        from_tf=from_tf,
     )
 
     data_collator = (

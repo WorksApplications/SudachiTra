@@ -95,11 +95,12 @@ def setup_config(config_name_or_path, data_args):
     return config
 
 
-def setup_trainer(model_name_or_path, config_name, datadict, data_args, training_args, tokenizer):
+def setup_trainer(model_name_or_path, config_name, datadict, data_args, training_args, tokenizer, from_tf=False):
     config = setup_config(config_name or model_name_or_path, data_args)
     model = AutoModelForSequenceClassification.from_pretrained(
         model_name_or_path,
         config=config,
+        from_tf=from_tf,
     )
 
     def compute_metrics(p: EvalPrediction):

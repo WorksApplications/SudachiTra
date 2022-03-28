@@ -161,6 +161,7 @@ python ./run_evaluation.py \
     --per_device_train_batch_size [training batch size] \
     --learning_rate               [learning rate] \
     --num_train_epochs            [epochs to finetune] \
+    --overwrite_cache             [set to overwrite data preprocess cache] \
     --max_train_samples           [limit number of train samples (for test run)] \
     --max_val_samples             [limit number of val samples (for test run)] \
     --max_test_samples            [limit number of test samples (for test run)] \
@@ -227,8 +228,6 @@ python ./run_evaluation.py \
 
 This assumes all model files are placed in the same directory (and named `bert` for `run_evaluation.py`), and all 3 datasets are placed in another directory.
 You will need to set those directories in the script for your environment.
-
-Note: As a side effect, this will remove huggingface datasets cache files.
 
 ```bash
 ./run_all.sh

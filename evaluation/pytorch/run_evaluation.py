@@ -63,6 +63,9 @@ class ModelArguments:
         default=None, metadata={"help": "Tokenizer to convert text space-separated before preprocess. "
                                 "\"juman\" (for Kyoto-U BERT) or \"mecab-juman\" (for NICT-BERT)."}
     )
+    from_tf: bool = field(
+        default=False, metadata={"help": "Set True when load tensorflow save file"}
+    )
 
     def __post_init__(self):
         self.use_sudachi = self.tokenizer_name.lower() == "sudachi"
@@ -103,7 +106,7 @@ class DataTrainingArguments:
     )
 
     max_seq_length: int = field(
-        default=384,
+        default=512,
         metadata={
             "help": "The maximum total input sequence length after tokenization. "
             "Sequences longer than this will be truncated, sequences shorter will be padded."
@@ -117,6 +120,7 @@ class DataTrainingArguments:
             "Data will always be padded when using TPUs."
         },
     )
+
     max_train_samples: Optional[int] = field(
         default=None,
         metadata={
@@ -248,10 +252,10 @@ def load_dataset(data_args, training_args):
     data_files = {k: str(Path(v).resolve())
                   for k, v in data_files.items() if v is not None}
 
-    dataset = hf_load_dataset(
+    raw_datadict = hf_load_dataset(
         data_args.input_file_extension, data_files=data_files)
 
-    return dataset
+    return raw_datadict
 
 
 def setup_args(task_type, data_args, raw_datadict):
@@ -347,16 +351,17 @@ def preprocess_dataset(task_type, raw_datadict, data_args, tokenizer):
 def setup_trainer(task_type, model_args, data_args, training_args, raw_datadict, datadict, tokenizer):
     model_name = model_args.model_name_or_path
     config_name = model_args.config_name or model_name
+    from_tf = model_args.from_tf
 
     if task_type == TaskType.CLASSIFICATION:
         return classification_utils.setup_trainer(
-            model_name, config_name, datadict, data_args, training_args, tokenizer)
+            model_name, config_name, datadict, data_args, training_args, tokenizer, from_tf=from_tf)
     elif task_type == TaskType.MULTIPLE_CHOICE:
         return multiple_choice_utils.setup_trainer(
-            model_name, config_name, datadict, data_args, training_args, tokenizer)
+            model_name, config_name, datadict, data_args, training_args, tokenizer, from_tf=from_tf)
     elif task_type == TaskType.QA:
         return qa_utils.setup_trainer(
-            model_name, config_name, raw_datadict, datadict, data_args, training_args, tokenizer)
+            model_name, config_name, raw_datadict, datadict, data_args, training_args, tokenizer, from_tf=from_tf)
 
     raise NotImplementedError(f"task type: {task_type}.")
 
@@ -443,7 +448,8 @@ def main():
     for step in step_keys:
         logger.info(f"step: {step}")
         metrics = evaluate_model(
-            task_type, trainer, raw_datadict[step], datadict[step], data_args, output_dir, stage=step)
+            task_type, trainer, raw_datadict[step], datadict[step],
+            data_args, output_dir, stage=step)
         eval_results[step] = metrics
 
     logger.info(f"result map: {eval_results}")

@@ -17,10 +17,10 @@ logging.basicConfig(
 logger.setLevel(logging.INFO)
 
 
-def setup_args(data_args, datasets):
+def setup_args(data_args, raw_datadict):
     # num_label to initialize model
-    dataset_key = list(datasets.keys())[0]  # at least one data file exists
-    label_list = datasets[dataset_key].unique("label")
+    dataset_key = list(raw_datadict.keys())[0]  # at least one data file exists
+    label_list = raw_datadict[dataset_key].unique("label")
     logger.info(f"classification task with {len(label_list)} labels.")
 
     data_args.label_list = sorted(label_list)
@@ -28,31 +28,31 @@ def setup_args(data_args, datasets):
 
     # columns of input text
     data_columns = [
-        c for c in datasets[dataset_key].column_names if c != "label"]
+        c for c in raw_datadict[dataset_key].column_names if c != "label"]
     if "sentence1" in data_columns:
         if "sentence2" in data_columns:
-            column_names = ["sentence1", "sentence2"]
+            text_columns = ["sentence1", "sentence2"]
         else:
-            column_names = ["sentence1"]
+            text_columns = ["sentence1"]
     else:
-        column_names = data_columns[:2]
+        text_columns = data_columns[:2]
 
     data_args.data_columns = data_columns
-    data_args.column_names = column_names
+    data_args.text_columns = text_columns
     return data_args
 
 
-def tokenize_texts(datadict, pretok, data_args):
+def pretokenize_texts(raw_datadict, pretok, data_args):
     def subfunc(examples):
-        for c in data_args.column_names:
+        for c in data_args.text_columns:
             examples[c] = [pretok(s) for s in examples[c]]
         return examples
 
-    datadict = datadict.map(subfunc, batched=True)
-    return datadict
+    raw_datadict = raw_datadict.map(subfunc, batched=True)
+    return raw_datadict
 
 
-def preprocess_dataset(dataset, data_args, tokenizer, max_length):
+def preprocess_dataset(raw_datadict, data_args, tokenizer, max_length):
     # Truncate text before tokenization for sudachi, which has a input bytes limit.
     # This may affect the result with a large max_length (tokens).
     MAX_CHAR_LENGTH = 2**14
@@ -60,7 +60,7 @@ def preprocess_dataset(dataset, data_args, tokenizer, max_length):
     def subfunc(examples):
         # Tokenize texts
         texts = ([s[:MAX_CHAR_LENGTH] for s in examples[c]]
-                 for c in data_args.column_names)
+                 for c in data_args.text_columns)
         result = tokenizer(*texts, max_length=max_length, truncation=True)
 
         # Map labels to ids
@@ -69,9 +69,13 @@ def preprocess_dataset(dataset, data_args, tokenizer, max_length):
                 (data_args.label2id[l] if l != -1 else -1) for l in examples["label"]]
         return result
 
-    dataset = dataset.map(subfunc, batched=True,
-                          remove_columns=data_args.data_columns)
-    return dataset
+    datadict = raw_datadict.map(
+        subfunc,
+        batched=True,
+        load_from_cache_file=not data_args.overwrite_cache,
+        remove_columns=data_args.data_columns
+    )
+    return datadict
 
 
 def convert_dataset_for_tensorflow(
@@ -146,11 +150,11 @@ def setup_model(model_name_or_path, config, training_args, from_pt=False):
     return model
 
 
-def evaluate_model(model, processed_dataset, tf_dataset, label2id, output_dir=None, stage="eval"):
+def evaluate_model(model, dataset, tf_dataset, label2id, output_dir=None, stage="eval"):
     predictions = model.predict(tf_dataset)["logits"]
     predicted_class = np.argmax(predictions, axis=1)
 
-    labels = processed_dataset["label"]
+    labels = dataset["label"]
     acc = sum(predicted_class == labels) / len(labels)
     metrics = {"accuracy": acc}
 

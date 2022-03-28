@@ -18,61 +18,69 @@ logging.basicConfig(
 logger.setLevel(logging.INFO)
 
 
-def setup_args(data_args, datasets):
+def setup_args(data_args, raw_datadict):
     # set dataset column name, assuming to use convert_dataset.py
-    dataset_key = list(datasets.keys())[0]  # at least one data file exists
-    clm_names = datasets[dataset_key].column_names
-
-    n_choices = 0
-    while f"choice_{n_choices}" in clm_names:
-        n_choices += 1
+    dataset_key = list(raw_datadict.keys())[0]  # at least one data file exists
+    column_names = raw_datadict[dataset_key].column_names
 
     data_args.context_column = "context"
-    data_args.choice_columns = [f"choice_{i}" for i in range(n_choices)]
+    data_args.choice_columns = [
+        c for c in column_names if c.startswith("choice")]
     data_args.label_column = "label"
+    data_args.column_names = column_names
     return data_args
 
 
-def tokenize_texts(datadict, pretok, data_args):
-    column_names = data_args.choice_columns + [data_args.context_column]
+def pretokenize_texts(raw_datadict, pretok, data_args):
+    text_columns = data_args.choice_columns + [data_args.context_column]
 
     def subfunc(examples):
-        for c in column_names:
+        for c in text_columns:
             examples[c] = [pretok(s) for s in examples[c]]
         return examples
 
-    datadict = datadict.map(subfunc, batched=True)
-    return datadict
+    raw_datadict = raw_datadict.map(subfunc, batched=True)
+    return raw_datadict
 
 
-def preprocess_dataset(dataset, data_args, tokenizer, max_length):
+def preprocess_dataset(raw_datadict, data_args, tokenizer, max_length):
     context_column = data_args.context_column
     choice_columns = data_args.choice_columns
     label_column = data_args.label_column
     n_choices = len(choice_columns)
 
-    dataset_key = list(dataset.keys())[0]
-    data_columns = [
-        c for c in dataset[dataset_key].column_names if c != label_column]
-
     def subfunc(examples):
         first_sentences = ([c] * n_choices for c in examples[context_column])
-        first_sentences = list(it.chain(*first_sentences))
         second_sentences = (examples[clm] for clm in choice_columns)
+
+        # flatten
+        first_sentences = list(it.chain(*first_sentences))
         second_sentences = list(it.chain(*zip(*second_sentences)))
 
-        tokenized = tokenizer(first_sentences, second_sentences,
-                              max_length=max_length, truncation=True)
+        # tokenize
+        tokenized = tokenizer(
+            first_sentences,
+            second_sentences,
+            max_length=max_length,
+            truncation=True,
+        )
 
         # un-flatten
-        data = {k: [v[i:i+n_choices] for i in range(0, len(v), n_choices)]
-                for k, v in tokenized.items()}
+        result = {k: [v[i:i+n_choices] for i in range(0, len(v), n_choices)]
+                  for k, v in tokenized.items()}
 
         # keep label column as it is, assuming it contains 0-indexed integer
-        return data
+        return result
 
-    dataset = dataset.map(subfunc, batched=True, remove_columns=data_columns)
-    return dataset
+    data_columns = [c for c in data_args.column_names if c != label_column]
+
+    datadict = raw_datadict.map(
+        subfunc,
+        batched=True,
+        load_from_cache_file=not data_args.overwrite_cache,
+        remove_columns=data_columns,
+    )
+    return datadict
 
 
 def convert_dataset_for_tensorflow(
@@ -147,9 +155,9 @@ def setup_model(model_name_or_path, config, training_args, from_pt=False):
     return model
 
 
-def evaluate_model(model, processed_dataset, tf_dataset, output_dir=None, stage="eval"):
+def evaluate_model(model, dataset, tf_dataset, output_dir=None, stage="eval"):
     metrics = model.evaluate(tf_dataset, return_dict=True)
-    labels = processed_dataset["label"]
+    labels = dataset["label"]
 
     if output_dir is not None:
         predictions = model.predict(tf_dataset)["logits"]

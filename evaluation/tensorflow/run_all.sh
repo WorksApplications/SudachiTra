@@ -90,6 +90,7 @@ command_run='( \
     --per_device_train_batch_size ${BATCH} \
     --learning_rate               ${LR} \
     --num_train_epochs            ${EPOCH} \
+    --overwrite_cache \
     # --max_train_samples           100 \
     # --max_val_samples             100 \
     # --max_test_samples            100 \
@@ -104,9 +105,6 @@ for DATASET in ${DATASETS[@]}; do
     for BATCH in ${BATCHES[@]}; do
       for LR in ${LRS[@]}; do
         for EPOCH in ${EPOCHS[@]}; do
-          # remove huggingface datasets cache file
-          rm $HOME/.cache/huggingface/datasets/ -rf
-
           export BATCH LR EPOCH
           set_model_args ${MODEL} ${DATASET}
 

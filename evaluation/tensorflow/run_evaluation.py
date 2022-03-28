@@ -103,8 +103,12 @@ class DataTrainingArguments:
                                 f"Inferred from dataset_name if not set."}
     )
 
+    overwrite_cache: bool = field(
+        default=False, metadata={"help": "Overwrite the cached preprocessed datasets or not."}
+    )
+
     max_seq_length: int = field(
-        default=384,
+        default=512,
         metadata={
             "help": "The maximum total input sequence length after tokenization. "
             "Sequences longer than this will be truncated, sequences shorter will be padded."
@@ -346,25 +350,25 @@ def setup_config(model_args, checkpoint, data_args):
     return config
 
 
-def tokenize_texts(task_type, datadict, model_args, data_args):
+def pretokenize_texts(task_type, raw_datadict, model_args, data_args):
     pretok = setup_pretokenizer(model_args)
     if pretok.is_identity:
-        return datadict
+        return raw_datadict
 
     subfunc = {
-        TaskType.CLASSIFICATION: classification_utils.tokenize_texts,
-        TaskType.MULTIPLE_CHOICE: multiple_choice_utils.tokenize_texts,
-        TaskType.QA: qa_utils.tokenize_texts,
+        TaskType.CLASSIFICATION: classification_utils.pretokenize_texts,
+        TaskType.MULTIPLE_CHOICE: multiple_choice_utils.pretokenize_texts,
+        TaskType.QA: qa_utils.pretokenize_texts,
     }.get(task_type, None)
 
     if subfunc is None:
         raise NotImplementedError(f"task type: {task_type}")
 
-    datadict = subfunc(datadict, pretok, data_args)
-    return datadict
+    raw_datadict = subfunc(raw_datadict, pretok, data_args)
+    return raw_datadict
 
 
-def preprocess_dataset(dataset, data_args, tokenizer):
+def preprocess_dataset(raw_datadict, data_args, tokenizer):
     # limit number of samples if specified
     max_samples = {
         "train": data_args.max_train_samples,
@@ -372,8 +376,9 @@ def preprocess_dataset(dataset, data_args, tokenizer):
         "test": data_args.max_test_samples,
     }
     for key in max_samples:
-        if key in dataset and max_samples[key] is not None:
-            dataset[key] = dataset[key].select(range(max_samples[key]))
+        if key in raw_datadict and max_samples[key] is not None:
+            raw_datadict[key] = raw_datadict[key].select(
+                range(max_samples[key]))
 
     # tokenize sentences
     if data_args.max_seq_length > tokenizer.model_max_length:
@@ -390,11 +395,11 @@ def preprocess_dataset(dataset, data_args, tokenizer):
     if subfunc is None:
         raise NotImplementedError(f"task type: {data_args.task_type}.")
 
-    dataset = subfunc(dataset, data_args, tokenizer, max_length)
-    return dataset
+    datadict = subfunc(raw_datadict, data_args, tokenizer, max_length)
+    return datadict
 
 
-def convert_to_tf_datasets(datasets, data_args, training_args):
+def convert_to_tf_datasets(datadict, data_args, training_args):
     skip_keys = ()
     if data_args.task_type == TaskType.QA:
         # apply different conversion in evaluate step
@@ -411,7 +416,7 @@ def convert_to_tf_datasets(datasets, data_args, training_args):
 
     tf_datasets = {}
     for key in ("train", "validation", "test"):
-        if key not in datasets or key in skip_keys:
+        if key not in datadict or key in skip_keys:
             tf_datasets[key] = None
             continue
 
@@ -432,7 +437,7 @@ def convert_to_tf_datasets(datasets, data_args, training_args):
             dataset_mode = "variable_batch"
 
         tf_datasets[key] = convert_func(
-            datasets[key],
+            datadict[key],
             batch_size=batch_size,
             dataset_mode=dataset_mode,
             shuffle=shuffle,
@@ -484,24 +489,21 @@ def finetune_model(model, tf_datasets, data_args, training_args, done_epochs):
     return model
 
 
-def evaluate_model(model, dataset, processed_dataset, tf_dataset, data_args, config, output_dir, stage="test"):
+def evaluate_model(model, raw_dataset, dataset, tf_dataset, data_args, config, output_dir, stage="test"):
     if data_args.task_type == TaskType.CLASSIFICATION:
         label2id = config.label2id or data_args.label2id
-        metrics = classification_utils.evaluate_model(
-            model, processed_dataset, tf_dataset, label2id, output_dir, stage=stage)
+        return classification_utils.evaluate_model(
+            model, dataset, tf_dataset, label2id, output_dir, stage=stage)
 
     elif data_args.task_type == TaskType.MULTIPLE_CHOICE:
-        metrics = multiple_choice_utils.evaluate_model(
-            model, processed_dataset, tf_dataset, output_dir, stage=stage)
+        return multiple_choice_utils.evaluate_model(
+            model, dataset, tf_dataset, output_dir, stage=stage)
 
     elif data_args.task_type == TaskType.QA:
-        metrics = qa_utils.evaluate_model(
-            model, dataset, processed_dataset, data_args, output_dir, stage=stage)
+        return qa_utils.evaluate_model(
+            model, raw_dataset, dataset, data_args, output_dir, stage=stage)
 
-    else:
-        raise NotImplementedError(f"task type: {data_args.task_type}.")
-
-    return metrics
+    raise NotImplementedError(f"task type: {data_args.task_type}.")
 
 
 def main():
@@ -527,17 +529,18 @@ def main():
     output_root = Path(training_args.output_dir)
     output_root.mkdir(parents=True, exist_ok=True)
 
-    datasets = load_dataset(data_args, training_args)
-    data_args = setup_args(data_args, datasets)
+    raw_datadict = load_dataset(data_args, training_args)
+    data_args = setup_args(data_args, raw_datadict)
     tokenizer = setup_tokenizer(model_args)
 
     logger.info(f"preprocess data:")
-    datasets = tokenize_texts(task_type, datasets, model_args, data_args)
-    processed_datasets = preprocess_dataset(datasets, data_args, tokenizer)
+    raw_datadict = pretokenize_texts(
+        task_type, raw_datadict, model_args, data_args)
+    datadict = preprocess_dataset(raw_datadict, data_args, tokenizer)
 
     with training_args.strategy.scope():
         tf_datasets = convert_to_tf_datasets(
-            processed_datasets, data_args, training_args)
+            datadict, data_args, training_args)
 
         if training_args.do_train:
             logger.info(f"finetune model:")
@@ -577,14 +580,9 @@ def main():
                                     config, training_args, data_args.task_type)
 
                 for step in step_keys:
-                    metrics = evaluate_model(model,
-                                             datasets[step],
-                                             processed_datasets[step],
-                                             tf_datasets[step],
-                                             data_args,
-                                             config,
-                                             output_dir=checkpoint,
-                                             stage=step)
+                    metrics = evaluate_model(
+                        model, raw_datadict[step], datadict[step], tf_datasets[step],
+                        data_args, config, output_dir=checkpoint, stage=step)
                     eval_results[step][checkpoint.name] = metrics
 
             for step in eval_results:

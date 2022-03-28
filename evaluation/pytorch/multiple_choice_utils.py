@@ -38,7 +38,7 @@ def setup_args(data_args, raw_datadict):
     return data_args
 
 
-def pretokenize_texts(datadict, pretok, data_args):
+def pretokenize_texts(raw_datadict, pretok, data_args):
     text_columns = data_args.choice_columns + [data_args.context_column]
 
     def subfunc(examples):
@@ -46,8 +46,8 @@ def pretokenize_texts(datadict, pretok, data_args):
             examples[c] = [pretok(s) for s in examples[c]]
         return examples
 
-    datadict = datadict.map(subfunc, batched=True)
-    return datadict
+    raw_datadict = raw_datadict.map(subfunc, batched=True)
+    return raw_datadict
 
 
 def preprocess_dataset(raw_datadict, data_args, tokenizer, max_length):
@@ -89,11 +89,12 @@ def preprocess_dataset(raw_datadict, data_args, tokenizer, max_length):
     return datadict
 
 
-def setup_trainer(model_name_or_path, config_name, datadict, data_args, training_args, tokenizer):
+def setup_trainer(model_name_or_path, config_name, datadict, data_args, training_args, tokenizer, from_tf=False):
     config = AutoConfig.from_pretrained(config_name or model_name_or_path)
     model = AutoModelForMultipleChoice.from_pretrained(
         model_name_or_path,
         config=config,
+        from_tf=from_tf,
     )
 
     def compute_metrics(p: EvalPrediction):

@@ -27,19 +27,19 @@ logging.basicConfig(
 logger.setLevel(logging.INFO)
 
 
-def setup_args(data_args, datasets):
+def setup_args(data_args, raw_datadict):
     # decide columns following huggingface example
-    dataset_key = list(datasets.keys())[0]  # at least one data file exists
-    clm_names = datasets[dataset_key].column_names
+    dataset_key = list(raw_datadict.keys())[0]  # at least one data file exists
+    clm_names = raw_datadict[dataset_key].column_names
 
     data_args.question_column = "question" if "question" in clm_names else clm_names[0]
     data_args.context_column = "context" if "context" in clm_names else clm_names[1]
     data_args.answer_column = "answers" if "answers" in clm_names else clm_names[2]
-    logger.info(f"work on a QA task.")
+    data_args.column_names = clm_names
     return data_args
 
 
-def tokenize_texts(datadict, pretok, data_args):
+def pretokenize_texts(raw_datadict, pretok, data_args):
     question_column = data_args.question_column
     context_column = data_args.context_column
     answer_column = data_args.answer_column
@@ -68,11 +68,11 @@ def tokenize_texts(datadict, pretok, data_args):
 
         return examples
 
-    datadict = datadict.map(subfunc, batched=True)
-    return datadict
+    raw_datadict = raw_datadict.map(subfunc, batched=True)
+    return raw_datadict
 
 
-def preprocess_dataset(dataset, data_args, tokenizer, max_length):
+def preprocess_dataset(raw_datadict, data_args, tokenizer, max_length):
     question_column = data_args.question_column
     context_column = data_args.context_column
     answer_column = data_args.answer_column
@@ -203,14 +203,15 @@ def preprocess_dataset(dataset, data_args, tokenizer, max_length):
 
         return result
 
-    dataset_name = list(dataset.keys())[0]
-    column_names = dataset[dataset_name].column_names
-
     processed = {}
     for key, subfunc in (("train", subfunc_train), ("validation", subfunc_test), ("test", subfunc_test)):
-        if key in dataset:
-            processed[key] = dataset[key].map(
-                subfunc, batched=True, remove_columns=column_names)
+        if key in raw_datadict:
+            processed[key] = raw_datadict[key].map(
+                subfunc,
+                batched=True,
+                remove_columns=data_args.column_names,
+                load_from_cache_file=not data_args.overwrite_cache,
+            )
     processed = DatasetDict(processed)
 
     return processed
@@ -336,16 +337,16 @@ def setup_model(model_name_or_path, config, training_args, from_pt=False):
     return model
 
 
-def evaluate_model(model, dataset, processed_dataset, data_args, output_dir=None, stage="eval"):
+def evaluate_model(model, raw_dataset, dataset, data_args, output_dir=None, stage="eval"):
     eval_inputs = {
-        "input_ids": tf.ragged.constant(processed_dataset["input_ids"]).to_tensor(),
-        "attention_mask": tf.ragged.constant(processed_dataset["attention_mask"]).to_tensor(),
+        "input_ids": tf.ragged.constant(dataset["input_ids"]).to_tensor(),
+        "attention_mask": tf.ragged.constant(dataset["attention_mask"]).to_tensor(),
     }
     eval_predictions = model.predict(eval_inputs)
     post_processed_eval = _post_processing_function(
         data_args,
+        raw_dataset,
         dataset,
-        processed_dataset,
         (eval_predictions.start_logits, eval_predictions.end_logits),
         output_dir=output_dir,
         stage=stage,
