@@ -312,7 +312,7 @@ def split_dataset(dataset: Dataset, split_rate_str: str = None):
     # ref: https://discuss.huggingface.co/t/how-to-split-main-dataset-into-train-dev-test-as-datasetdict/1090
 
     DEFAULT_SPLIT_RATE = "8/1/1"
-    split_rate_str = split_rate_str if split_rate_str is None else DEFAULT_SPLIT_RATE
+    split_rate_str = split_rate_str if split_rate_str is not None else DEFAULT_SPLIT_RATE
 
     v_train, v_val, v_test = (int(v) for v in split_rate_str.split("/"))
     if not (v_train > 0 and v_val >= 0 and v_test > 0):
