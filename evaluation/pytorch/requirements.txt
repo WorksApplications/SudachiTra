@@ -4,7 +4,7 @@ torch
 # huggingface
 transformers
 tokenizers
-datasets
+datasets<1.18
 
 # tokenizers
 sudachitra
