@@ -1,0 +1,20 @@
+# frameworks
+torch
+
+# huggingface
+transformers
+tokenizers
+datasets<1.18
+
+# tokenizers
+sudachitra
+pytextspan
+mecab-python3
+mojimoji
+pyknp
+
+# tohoku-bert
+fugashi
+unidic_lite
+ipadic
+
