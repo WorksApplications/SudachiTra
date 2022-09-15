@@ -69,7 +69,7 @@ class JapaneseBertWordPieceTokenizerTest(unittest.TestCase):
         self.delete_prefix = lambda x: self.prefix_pattern.sub('', x)
 
         self.sudachi_dict = Dictionary(dict='core')
-        self.test_sentence = '引越してからすだち－Ｓｕｄａｃｈｉをとどけます。'
+        self.test_sentence = '引越してからすだちＳｕｄａｃｈｉをとどけます。'
         self.sudachi = self.sudachi_dict.create(mode=SplitMode.C)
 
     def set_pretokenizer(self, word_form_type: WordFormTypes):
@@ -97,7 +97,7 @@ class JapaneseBertWordPieceTokenizerTest(unittest.TestCase):
 
     def test_surface(self):
         word_form_type = WordFormTypes.SURFACE
-        tokens = ['[CLS]', '引越', 'し', 'て', 'から', 'すだち', '－', 'Ｓｕｄａｃｈｉ', 'を', 'とど', '##け', 'ます', '。', '[SEP]']
+        tokens = ['[CLS]', '引越', 'し', 'て', 'から', 'すだち', 'Ｓｕｄａｃｈｉ', 'を', 'とど', '##け', 'ます', '。', '[SEP]']
 
         self.set_pretokenizer(word_form_type)
         encoding = self.wp_tokenizer.encode(self.test_sentence)
@@ -105,7 +105,7 @@ class JapaneseBertWordPieceTokenizerTest(unittest.TestCase):
 
     def test_normalized_and_surface(self):
         word_form_type = WordFormTypes.NORMALIZED_AND_SURFACE
-        tokens = ['[CLS]', '引っ越し', 'し', 'て', 'から', '酢橘', '-', 'Sudachi', 'を', 'とど', '##け', 'ます', '。', '[SEP]']
+        tokens = ['[CLS]', '引っ越し', 'し', 'て', 'から', '酢橘', 'Sudachi', 'を', 'とど', '##け', 'ます', '。', '[SEP]']
 
         self.set_pretokenizer(word_form_type)
         encoding = self.wp_tokenizer.encode(self.test_sentence)
@@ -113,7 +113,7 @@ class JapaneseBertWordPieceTokenizerTest(unittest.TestCase):
 
     def test_normalized_nouns(self):
         word_form_type = WordFormTypes.NORMALIZED_NOUNS
-        tokens = ['[CLS]', '引っ越し', 'し', 'て', 'から', '酢橘', '-', 'Sudachi', 'を', 'とど', '##け', 'ます', '。', '[SEP]']
+        tokens = ['[CLS]', '引っ越し', 'し', 'て', 'から', '酢橘', 'Sudachi', 'を', 'とど', '##け', 'ます', '。', '[SEP]']
 
         self.set_pretokenizer(word_form_type)
         encoding = self.wp_tokenizer.encode(self.test_sentence)
@@ -122,7 +122,7 @@ class JapaneseBertWordPieceTokenizerTest(unittest.TestCase):
 
     def test_normalized_conjugation(self):
         word_form_type = WordFormTypes.NORMALIZED_CONJUGATION
-        tokens = ['[CLS]', '引っ越し', 'し', 'て', 'から', '酢橘', '-', 'Sudachi', 'を', '届', '##け', 'ます', '。', '[SEP]']
+        tokens = ['[CLS]', '引っ越し', 'し', 'て', 'から', '酢橘', 'Sudachi', 'を', '届', '##け', 'ます', '。', '[SEP]']
 
         self.set_pretokenizer(word_form_type)
         encoding = self.wp_tokenizer.encode(self.test_sentence)
@@ -130,7 +130,7 @@ class JapaneseBertWordPieceTokenizerTest(unittest.TestCase):
 
     def test_normalized_form(self):
         word_form_type = WordFormTypes.NORMALIZED
-        tokens = ['[CLS]', '引っ越し', '為る', 'て', 'から', '酢橘', '-', 'Sudachi', 'を', '届', '##け', '##る', 'ます', '。', '[SEP]']
+        tokens = ['[CLS]', '引っ越し', '為る', 'て', 'から', '酢橘', 'Sudachi', 'を', '届', '##け', '##る', 'ます', '。', '[SEP]']
 
         self.set_pretokenizer(word_form_type)
         encoding = self.wp_tokenizer.encode(self.test_sentence)
@@ -138,7 +138,7 @@ class JapaneseBertWordPieceTokenizerTest(unittest.TestCase):
 
     def test_dictionary_form(self):
         word_form_type = WordFormTypes.DICTIONARY
-        tokens = ['[CLS]', '引越', 'する', 'て', 'から', 'すだち', '-', 'Sudachi', 'を', 'とど', '##け', '##る', 'ます', '。', '[SEP]']
+        tokens = ['[CLS]', '引越', 'する', 'て', 'から', 'すだち', 'Sudachi', 'を', 'とど', '##け', '##る', 'ます', '。', '[SEP]']
 
         self.set_pretokenizer(word_form_type)
         encoding = self.wp_tokenizer.encode(self.test_sentence)
@@ -146,7 +146,7 @@ class JapaneseBertWordPieceTokenizerTest(unittest.TestCase):
 
     def test_dictionary_and_surface(self):
         word_form_type = WordFormTypes.DICTIONARY_AND_SURFACE
-        tokens = ['[CLS]', '引越', 'し', 'て', 'から', 'すだち', '-', 'Sudachi', 'を', 'とど', '##け', 'ます', '。', '[SEP]']
+        tokens = ['[CLS]', '引越', 'し', 'て', 'から', 'すだち', 'Sudachi', 'を', 'とど', '##け', 'ます', '。', '[SEP]']
 
         self.set_pretokenizer(word_form_type)
         encoding = self.wp_tokenizer.encode(self.test_sentence)
