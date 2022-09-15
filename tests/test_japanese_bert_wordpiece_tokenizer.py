@@ -111,6 +111,15 @@ class JapaneseBertWordPieceTokenizerTest(unittest.TestCase):
         encoding = self.wp_tokenizer.encode(self.test_sentence)
         self.validate_encoding(tokens, encoding)
 
+    def test_normalized_nouns(self):
+        word_form_type = WordFormTypes.NORMALIZED_NOUNS
+        tokens = ['[CLS]', '引っ越し', 'し', 'て', 'から', '酢橘', '－', 'Sudachi', 'を', 'とど', '##け', 'ます', '。', '[SEP]']
+
+        self.set_pretokenizer(word_form_type)
+        encoding = self.wp_tokenizer.encode(self.test_sentence)
+        self.validate_encoding(tokens, encoding)
+
+
     def test_normalized_conjugation(self):
         word_form_type = WordFormTypes.NORMALIZED_CONJUGATION
         tokens = ['[CLS]', '引っ越し', 'し', 'て', 'から', '酢橘', '－', 'Sudachi', 'を', '届', '##け', 'ます', '。', '[SEP]']

@@ -34,6 +34,7 @@ class WordFormTypes(str, Enum):
     DICTIONARY_HALF_ASCII = 'dictionary_half_ascii'
     DICTIONARY_AND_SURFACE_HALF_ASCII = 'dictionary_and_surface_half_ascii'
     NORMALIZED_CONJUGATION = 'normalized_conjugation'
+    NORMALIZED_NOUNS = "normalized_nouns"
 
     def __str__(self):
         return self.value
@@ -63,6 +64,7 @@ def word_formatter(word_form_type, sudachi_dict: Dictionary) -> Callable[[Morphe
             sudachi_dict)
 
     conjugation_matcher = sudachi_dict.pos_matcher(lambda p: p[0] in CONJUGATIVE_POS)
+    nouns_matcher = sudachi_dict.pos_matcher(lambda x: x[5] == "*")
 
     word_formatters = {
         WordFormTypes.SURFACE: (
@@ -79,6 +81,9 @@ def word_formatter(word_form_type, sudachi_dict: Dictionary) -> Callable[[Morphe
         ),
         WordFormTypes.NORMALIZED_AND_SURFACE: (
             lambda m: m.surface() if conjugation_matcher(m) else m.normalized_form()
+        ),
+        WordFormTypes.NORMALIZED_NOUNS: (
+            lambda m: m.normalized_form() if nouns_matcher(m) else m.surface()
         ),
         WordFormTypes.SURFACE_HALF_ASCII: (
             lambda m: m.surface().translate(HALF_ASCII_TRANSLATE_TABLE)

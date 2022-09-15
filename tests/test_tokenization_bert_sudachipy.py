@@ -168,6 +168,23 @@ class BertSudachipyTokenizationTest(unittest.TestCase):
             tokenizer.tokenize("appleの辞書形はAppleで正規形はアップルである。"),
             ["アップル", "の", "辞書", "形", "は", "アップル", "で", "正規", "形", "は", "アップル", "で", "ある", "。"]
         )
+        self.assertListEqual(
+            tokenizer.tokenize("強がっている"),
+            ["強", "がる", "て", "いる"]
+        )
+
+    def test_sudachipy_tokenizer_normalized_nouns(self):
+        tokenizer = self.tokenizer_class(self.vocab_file, do_subword_tokenize=False,
+                                         word_form_type='normalized_nouns')
+
+        self.assertListEqual(
+            tokenizer.tokenize("appleの辞書形はAppleで正規形はアップルである。"),
+            ["アップル", "の", "辞書", "形", "は", "アップル", "で", "正規", "形", "は", "アップル", "で", "ある", "。"]
+        )
+        self.assertListEqual(
+            tokenizer.tokenize("強がっている"),
+            ["強", "がっ", "て", "いる"]
+        )
 
     def test_sudachipy_tokenizer_surface_half_ascii(self):
         tokenizer = self.tokenizer_class(self.vocab_file, do_subword_tokenize=False,
