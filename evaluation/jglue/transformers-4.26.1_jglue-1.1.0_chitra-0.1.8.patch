@@ -1,0 +1,615 @@
+diff --git a/examples/legacy/question-answering/run_squad.py b/examples/legacy/question-answering/run_squad.py
+index 674e7a9ac..3b0f5a62e 100644
+--- a/examples/legacy/question-answering/run_squad.py
++++ b/examples/legacy/question-answering/run_squad.py
+@@ -22,6 +22,8 @@ import logging
+ import os
+ import random
+ import timeit
++import json
++import math
+ 
+ import numpy as np
+ import torch
+@@ -48,6 +50,8 @@ from transformers.data.metrics.squad_metrics import (
+ from transformers.data.processors.squad import SquadResult, SquadV1Processor, SquadV2Processor
+ from transformers.trainer_utils import is_main_process
+ 
++from sudachitra import BertSudachipyTokenizer
++AutoTokenizer.register(BertSudachipyTokenizer.__name__, slow_tokenizer_class=BertSudachipyTokenizer)
+ 
+ try:
+     from torch.utils.tensorboard import SummaryWriter
+@@ -98,6 +102,10 @@ def train(args, train_dataset, model, tokenizer):
+         {"params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], "weight_decay": 0.0},
+     ]
+     optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
++    if args.warmup_ratio > 0:
++        args.warmup_steps = math.ceil(t_total * args.warmup_ratio)
++        logger.info("Warmup steps = %d", args.warmup_steps)
++
+     scheduler = get_linear_schedule_with_warmup(
+         optimizer, num_warmup_steps=args.warmup_steps, num_training_steps=t_total
+     )
+@@ -439,9 +447,10 @@ def load_and_cache_examples(args, tokenizer, evaluate=False, output_examples=Fal
+                 logger.warning("tensorflow_datasets does not handle version 2 of SQuAD.")
+ 
+             tfds_examples = tfds.load("squad")
+-            examples = SquadV1Processor().get_examples_from_dataset(tfds_examples, evaluate=evaluate)
++            # provide tokenizer for pre-tokenization
++            examples = SquadV1Processor(tokenizer).get_examples_from_dataset(tfds_examples, evaluate=evaluate)
+         else:
+-            processor = SquadV2Processor() if args.version_2_with_negative else SquadV1Processor()
++            processor = SquadV2Processor(tokenizer) if args.version_2_with_negative else SquadV1Processor(tokenizer)
+             if evaluate:
+                 examples = processor.get_dev_examples(args.data_dir, filename=args.predict_file)
+             else:
+@@ -604,6 +613,7 @@ def main():
+         help="If > 0: set total number of training steps to perform. Override num_train_epochs.",
+     )
+     parser.add_argument("--warmup_steps", default=0, type=int, help="Linear warmup over warmup_steps.")
++    parser.add_argument("--warmup_ratio", default=0.0, type=float, help="Linear warmup ratio.")
+     parser.add_argument(
+         "--n_best_size",
+         default=20,
+@@ -637,6 +647,13 @@ def main():
+         ),
+     )
+ 
++    parser.add_argument(
++        "--evaluate_prefix",
++        default=None,
++        type=str,
++        help="evaluate prefix",
++    )
++
+     parser.add_argument("--logging_steps", type=int, default=500, help="Log every X updates steps.")
+     parser.add_argument("--save_steps", type=int, default=500, help="Save checkpoint every X updates steps.")
+     parser.add_argument(
+@@ -829,12 +846,15 @@ def main():
+             model.to(args.device)
+ 
+             # Evaluate
+-            result = evaluate(args, model, tokenizer, prefix=global_step)
++            result = evaluate(args, model, tokenizer, prefix=args.evaluate_prefix if args.evaluate_prefix is not None else global_step)
+ 
+             result = dict((k + ("_{}".format(global_step) if global_step else ""), v) for k, v in result.items())
+             results.update(result)
+ 
+     logger.info("Results: {}".format(results))
++    eval_json_file = os.path.join(args.output_dir, "{}_results.json".format(args.evaluate_prefix))
++    with open(eval_json_file, "w") as writer:
++        writer.write(json.dumps(results, indent=4) + "\n")
+ 
+     return results
+ 
+diff --git a/examples/legacy/question-answering/run_squad_trainer.py b/examples/legacy/question-answering/run_squad_trainer.py
+index 314b140e8..177c5a7aa 100644
+--- a/examples/legacy/question-answering/run_squad_trainer.py
++++ b/examples/legacy/question-answering/run_squad_trainer.py
+@@ -35,6 +35,9 @@ from transformers import SquadDataTrainingArguments as DataTrainingArguments
+ from transformers import Trainer, TrainingArguments
+ from transformers.trainer_utils import is_main_process
+ 
++from sudachitra import BertSudachipyTokenizer
++AutoTokenizer.register(BertSudachipyTokenizer.__name__, slow_tokenizer_class=BertSudachipyTokenizer)
++
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -173,7 +176,7 @@ def main():
+         trainer.save_model()
+         # For convenience, we also re-save the tokenizer to the same directory,
+         # so that you can share your model easily on huggingface.co/models =)
+-        if trainer.is_world_master():
++        if trainer.is_world_process_zero():
+             tokenizer.save_pretrained(training_args.output_dir)
+ 
+ 
+diff --git a/examples/pytorch/multiple-choice/run_swag.py b/examples/pytorch/multiple-choice/run_swag.py
+index 659e494d5..943922e2a 100755
+--- a/examples/pytorch/multiple-choice/run_swag.py
++++ b/examples/pytorch/multiple-choice/run_swag.py
+@@ -45,6 +45,9 @@ from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+ from transformers.trainer_utils import get_last_checkpoint
+ from transformers.utils import PaddingStrategy, check_min_version, send_example_telemetry
+ 
++from sudachitra import BertSudachipyTokenizer
++AutoTokenizer.register(BertSudachipyTokenizer.__name__, slow_tokenizer_class=BertSudachipyTokenizer)
++
+ 
+ # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
+ check_min_version("4.26.0")
+@@ -101,6 +104,10 @@ class DataTrainingArguments:
+         default=None,
+         metadata={"help": "An optional input evaluation data file to evaluate the perplexity on (a text file)."},
+     )
++    test_file: Optional[str] = field(
++        default=None,
++        metadata={"help": "An optional input prediction data file."},
++    )
+     overwrite_cache: bool = field(
+         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
+     )
+@@ -282,6 +289,8 @@ def main():
+             data_files["train"] = data_args.train_file
+         if data_args.validation_file is not None:
+             data_files["validation"] = data_args.validation_file
++        if data_args.test_file is not None:
++            data_files["test"] = data_args.test_file
+         extension = data_args.train_file.split(".")[-1]
+         raw_datasets = load_dataset(
+             extension,
+@@ -328,9 +337,8 @@ def main():
+     )
+ 
+     # When using your own dataset or a different dataset from swag, you will probably need to change this.
+-    ending_names = [f"ending{i}" for i in range(4)]
+-    context_name = "sent1"
+-    question_header_name = "sent2"
++    ending_names = [f"choice{i}" for i in range(5)]
++    context_name = "question"
+ 
+     if data_args.max_seq_length is None:
+         max_seq_length = tokenizer.model_max_length
+@@ -350,10 +358,9 @@ def main():
+ 
+     # Preprocessing the datasets.
+     def preprocess_function(examples):
+-        first_sentences = [[context] * 4 for context in examples[context_name]]
+-        question_headers = examples[question_header_name]
++        first_sentences = [[context] * 5 for context in examples[context_name]]
+         second_sentences = [
+-            [f"{header} {examples[end][i]}" for end in ending_names] for i, header in enumerate(question_headers)
++            [f"{examples[end][i]}" for end in ending_names] for i in range(len(examples[context_name]))
+         ]
+ 
+         # Flatten out
+@@ -369,7 +376,7 @@ def main():
+             padding="max_length" if data_args.pad_to_max_length else False,
+         )
+         # Un-flatten
+-        return {k: [v[i : i + 4] for i in range(0, len(v), 4)] for k, v in tokenized_examples.items()}
++        return {k: [v[i : i + 5] for i in range(0, len(v), 5)] for k, v in tokenized_examples.items()}
+ 
+     if training_args.do_train:
+         if "train" not in raw_datasets:
+@@ -401,6 +408,18 @@ def main():
+                 load_from_cache_file=not data_args.overwrite_cache,
+             )
+ 
++    if training_args.do_predict:
++        if "test" not in raw_datasets:
++            raise ValueError("--do_predict requires a test dataset")
++        predict_dataset = raw_datasets["test"]
++        with training_args.main_process_first(desc="test dataset map pre-processing"):
++            predict_dataset = predict_dataset.map(
++                preprocess_function,
++                batched=True,
++                num_proc=data_args.preprocessing_num_workers,
++                load_from_cache_file=not data_args.overwrite_cache,
++            )
++
+     # Data collator
+     data_collator = (
+         default_data_collator
+@@ -465,6 +484,21 @@ def main():
+         language="en",
+     )
+ 
++    if training_args.do_predict:
++        logger.info("*** Predict ***")
++
++        predictions = trainer.predict(predict_dataset)
++        prediction_list = np.argmax(predictions.predictions, axis=1)
++        output_predict_file = os.path.join(training_args.output_dir, f"predict_results_valid.txt")
++
++        if trainer.is_world_process_zero():
++            with open(output_predict_file, "w") as writer:
++                logger.info(f"***** Predict results *****")
++                writer.write("index\tprediction\n")
++
++                for i, prediction in enumerate(prediction_list):
++                    writer.write(f"{i}\t{prediction}\n")
++
+     if training_args.push_to_hub:
+         trainer.push_to_hub(**kwargs)
+     else:
+diff --git a/examples/pytorch/text-classification/run_glue.py b/examples/pytorch/text-classification/run_glue.py
+index 4437aa188..8a3a0523a 100755
+--- a/examples/pytorch/text-classification/run_glue.py
++++ b/examples/pytorch/text-classification/run_glue.py
+@@ -46,6 +46,9 @@ from transformers.trainer_utils import get_last_checkpoint
+ from transformers.utils import check_min_version, send_example_telemetry
+ from transformers.utils.versions import require_version
+ 
++from sudachitra import BertSudachipyTokenizer
++AutoTokenizer.register(BertSudachipyTokenizer.__name__, slow_tokenizer_class=BertSudachipyTokenizer)
++
+ 
+ # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
+ check_min_version("4.26.0")
+@@ -81,6 +84,10 @@ class DataTrainingArguments:
+         default=None,
+         metadata={"help": "The name of the task to train on: " + ", ".join(task_to_keys.keys())},
+     )
++    metric_name: Optional[str] = field(
++        default=None,
++        metadata={"help": "The name of the metric for evaluation as a GLUE task name: " + ", ".join(task_to_keys.keys())},
++    )
+     dataset_name: Optional[str] = field(
+         default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
+     )
+@@ -379,6 +386,8 @@ def main():
+     # Preprocessing the raw_datasets
+     if data_args.task_name is not None:
+         sentence1_key, sentence2_key = task_to_keys[data_args.task_name]
++    elif data_args.metric_name is not None:
++        sentence1_key, sentence2_key = task_to_keys[data_args.metric_name]
+     else:
+         # Again, we try to have some nice defaults but don't hesitate to tweak to your use case.
+         non_label_column_names = [name for name in raw_datasets["train"].column_names if name != "label"]
+@@ -482,6 +491,8 @@ def main():
+     # Get the metric function
+     if data_args.task_name is not None:
+         metric = evaluate.load("glue", data_args.task_name)
++    elif data_args.metric_name is not None:
++        metric = evaluate.load("glue", data_args.metric_name)
+     else:
+         metric = evaluate.load("accuracy")
+ 
+@@ -490,7 +501,7 @@ def main():
+     def compute_metrics(p: EvalPrediction):
+         preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
+         preds = np.squeeze(preds) if is_regression else np.argmax(preds, axis=1)
+-        if data_args.task_name is not None:
++        if data_args.task_name is not None or data_args.metric_name is not None:
+             result = metric.compute(predictions=preds, references=p.label_ids)
+             if len(result) > 1:
+                 result["combined_score"] = np.mean(list(result.values())).item()
+@@ -576,7 +587,9 @@ def main():
+         logger.info("*** Predict ***")
+ 
+         # Loop to handle MNLI double evaluation (matched, mis-matched)
+-        tasks = [data_args.task_name]
++        # tasks = [data_args.task_name]
++        tasks = [data_args.metric_name]
++
+         predict_datasets = [predict_dataset]
+         if data_args.task_name == "mnli":
+             tasks.append("mnli-mm")
+diff --git a/src/transformers/data/metrics/squad_metrics.py b/src/transformers/data/metrics/squad_metrics.py
+index 6eea34ad9..63ad4e4b9 100644
+--- a/src/transformers/data/metrics/squad_metrics.py
++++ b/src/transformers/data/metrics/squad_metrics.py
+@@ -38,15 +38,20 @@ def normalize_answer(s):
+     """Lower text and remove punctuation, articles and extra whitespace."""
+ 
+     def remove_articles(text):
+-        regex = re.compile(r"\b(a|an|the)\b", re.UNICODE)
+-        return re.sub(regex, " ", text)
++        return text.rstrip("。")
++
++        # regex = re.compile(r"\b(a|an|the)\b", re.UNICODE)
++        # return re.sub(regex, " ", text)
+ 
+     def white_space_fix(text):
+         return " ".join(text.split())
+ 
+     def remove_punc(text):
+-        exclude = set(string.punctuation)
+-        return "".join(ch for ch in text if ch not in exclude)
++        # do nothing
++        return text
++
++        # exclude = set(string.punctuation)
++        # return "".join(ch for ch in text if ch not in exclude)
+ 
+     def lower(text):
+         return text.lower()
+@@ -65,8 +70,10 @@ def compute_exact(a_gold, a_pred):
+ 
+ 
+ def compute_f1(a_gold, a_pred):
+-    gold_toks = get_tokens(a_gold)
+-    pred_toks = get_tokens(a_pred)
++    # character-base
++    gold_toks = list(normalize_answer(a_gold))
++    pred_toks = list(normalize_answer(a_pred))
++
+     common = collections.Counter(gold_toks) & collections.Counter(pred_toks)
+     num_same = sum(common.values())
+     if len(gold_toks) == 0 or len(pred_toks) == 0:
+@@ -252,7 +259,7 @@ def squad_evaluate(examples, preds, no_answer_probs=None, no_answer_probability_
+     return evaluation
+ 
+ 
+-def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
++def get_final_text(pred_text, orig_text, do_lower_case, tokenizer, verbose_logging=False):
+     """Project the tokenized prediction back to the original text."""
+ 
+     # When we created the data, we kept track of the alignment between original
+@@ -295,7 +302,7 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
+     # and `pred_text`, and check if they are the same length. If they are
+     # NOT the same length, the heuristic has failed. If they are the same
+     # length, we assume the characters are one-to-one aligned.
+-    tokenizer = BasicTokenizer(do_lower_case=do_lower_case)
++    # tokenizer = BasicTokenizer(do_lower_case=do_lower_case)
+ 
+     tok_text = " ".join(tokenizer.tokenize(orig_text))
+ 
+@@ -511,7 +518,20 @@ def compute_predictions_logits(
+                 tok_text = " ".join(tok_text.split())
+                 orig_text = " ".join(orig_tokens)
+ 
+-                final_text = get_final_text(tok_text, orig_text, do_lower_case, verbose_logging)
++                # final_text = get_final_text(tok_text, orig_text, do_lower_case, verbose_logging)
++                # When you use BertJapaneseTokenizer, the input text is not tokenized.
++                # So, we cannot use the get_final_text function
++                if tokenizer.__class__.__name__ == "BertJapaneseTokenizer":
++                    final_text = "".join(tok_text.split(" "))
++                elif tokenizer.__class__.__name__ == "BertSudachipyTokenizer":
++                    # In the case of BertSudachipyTokenizer, get_final_text may
++                    # work. But we still need to remove whitespaces to evaluate
++                    # with answer texts that are not tokenized.
++                    final_text = get_final_text(tok_text, orig_text, do_lower_case, tokenizer, verbose_logging)
++                    final_text = "".join(final_text.split(" "))
++                else:
++                    final_text = get_final_text(tok_text, orig_text, do_lower_case, tokenizer, verbose_logging)
++
+                 if final_text in seen_predictions:
+                     continue
+ 
+diff --git a/src/transformers/data/processors/squad.py b/src/transformers/data/processors/squad.py
+index 64137c95a..7ea1a8b50 100644
+--- a/src/transformers/data/processors/squad.py
++++ b/src/transformers/data/processors/squad.py
+@@ -25,6 +25,7 @@ from ...tokenization_utils_base import BatchEncoding, PreTrainedTokenizerBase, T
+ from ...utils import is_tf_available, is_torch_available, logging
+ from .utils import DataProcessor
+ 
++import textspan
+ 
+ # Store the tokenizers which insert 2 separators tokens
+ MULTI_SEP_TOKENS_TOKENIZERS_SET = {"roberta", "camembert", "bart", "mpnet"}
+@@ -104,6 +105,9 @@ def _is_whitespace(c):
+ def squad_convert_example_to_features(
+     example, max_seq_length, doc_stride, max_query_length, padding_strategy, is_training
+ ):
++    assert tokenizer.__class__.__name__ == "BertSudachipyTokenizer", \
++        "script is patched for sudachira.BertSudachipyTokenizer."
++
+     features = []
+     if is_training and not example.is_impossible:
+         # Get start and end position
+@@ -111,31 +115,44 @@ def squad_convert_example_to_features(
+         end_position = example.end_position
+ 
+         # If the answer cannot be found in the text, then skip this example.
+-        actual_text = " ".join(example.doc_tokens[start_position : (end_position + 1)])
+-        cleaned_answer_text = " ".join(whitespace_tokenize(example.answer_text))
++        # actual_text = " ".join(example.doc_tokens[start_position : (end_position + 1)])
++        # cleaned_answer_text = " ".join(whitespace_tokenize(example.answer_text))
++        actual_text = "".join(example.doc_tokens[start_position : (end_position + 1)])
++        cleaned_answer_text = tokenizer.normalizer.normalize_str(example.answer_text)
+         if actual_text.find(cleaned_answer_text) == -1:
+             logger.warning(f"Could not find answer: '{actual_text}' vs. '{cleaned_answer_text}'")
+             return []
+ 
+     tok_to_orig_index = []
+     orig_to_tok_index = []
+-    all_doc_tokens = []
+-    for i, token in enumerate(example.doc_tokens):
+-        orig_to_tok_index.append(len(all_doc_tokens))
+-        if tokenizer.__class__.__name__ in [
+-            "RobertaTokenizer",
+-            "LongformerTokenizer",
+-            "BartTokenizer",
+-            "RobertaTokenizerFast",
+-            "LongformerTokenizerFast",
+-            "BartTokenizerFast",
+-        ]:
+-            sub_tokens = tokenizer.tokenize(token, add_prefix_space=True)
++    # all_doc_tokens = []
++    # for i, token in enumerate(example.doc_tokens):
++    #     orig_to_tok_index.append(len(all_doc_tokens))
++    #     if tokenizer.__class__.__name__ in [
++    #         "RobertaTokenizer",
++    #         "LongformerTokenizer",
++    #         "BartTokenizer",
++    #         "RobertaTokenizerFast",
++    #         "LongformerTokenizerFast",
++    #         "BartTokenizerFast",
++    #     ]:
++    #         sub_tokens = tokenizer.tokenize(token, add_prefix_space=True)
++    #     else:
++    #         sub_tokens = tokenizer.tokenize(token)
++    #     for sub_token in sub_tokens:
++    #         tok_to_orig_index.append(i)
++    #         all_doc_tokens.append(sub_token)
++
++    # Applying Sudachi tokenizer to each doc_token may results in different split.
++    # We apply tokenizer to the full text instead.
++    all_doc_tokens = tokenizer.tokenize(example.context_text)
++    subword_count = 0
++    for i, token in enumerate(all_doc_tokens):
++        if token.startswith("##"):  # is_subword
++            subword_count += 1
+         else:
+-            sub_tokens = tokenizer.tokenize(token)
+-        for sub_token in sub_tokens:
+-            tok_to_orig_index.append(i)
+-            all_doc_tokens.append(sub_token)
++            orig_to_tok_index.append(i)
++        tok_to_orig_index.append(i - subword_count)
+ 
+     if is_training and not example.is_impossible:
+         tok_start_position = orig_to_tok_index[example.start_position]
+@@ -548,6 +565,9 @@ class SquadProcessor(DataProcessor):
+     train_file = None
+     dev_file = None
+ 
++    def __init__(self, tokenizer):
++        self.tokenizer = tokenizer
++
+     def _get_example_from_tensor_dict(self, tensor_dict, evaluate=False):
+         if not evaluate:
+             answer = tensor_dict["answers"]["text"][0].numpy().decode("utf-8")
+@@ -563,6 +583,7 @@ class SquadProcessor(DataProcessor):
+             answer_start = None
+ 
+         return SquadExample(
++            tokenizer=self.tokenizer,
+             qas_id=tensor_dict["id"].numpy().decode("utf-8"),
+             question_text=tensor_dict["question"].numpy().decode("utf-8"),
+             context_text=tensor_dict["context"].numpy().decode("utf-8"),
+@@ -672,6 +693,7 @@ class SquadProcessor(DataProcessor):
+                             answers = qa["answers"]
+ 
+                     example = SquadExample(
++                        tokenizer=self.tokenizer,
+                         qas_id=qas_id,
+                         question_text=question_text,
+                         context_text=context_text,
+@@ -695,6 +717,60 @@ class SquadV2Processor(SquadProcessor):
+     dev_file = "dev-v2.0.json"
+ 
+ 
++def _sudachi_tokenize(tokenizer, text):
++    """Normalize and tokenize text using sudachi (wo subword), considering special tokens."""
++    # 1. "".join(tokenized_text) equals to 'normalized' text
++    # 2. tokenized_text matches tokenizer.tokenize(text), except subword
++    no_split_tokens = tokenizer.unique_no_split_tokens
++    tokens = tokenizer.tokens_trie.split(text)
++    for i, token in enumerate(tokens):
++        if token in no_split_tokens:
++            left = tokens[i - 1] if i > 0 else None
++            right = tokens[i + 1] if i < len(tokens) - 1 else None
++            # We strip left and right, but keep them for the first condition
++            if right:
++                stripped = right.lstrip()
++                tokens[i + 1] = stripped
++                tokens[i] = tokens[i] + right[:-len(stripped)]
++            if left:
++                stripped = left.rstrip()
++                tokens[i - 1] = stripped
++                tokens[i] = left[len(stripped):] + tokens[i]
++    tokenized_text = []
++    for token in tokens:
++        # Need to skip eventual empty (fully stripped) tokens
++        if not token:
++            continue
++        # check w stripped, since we may move whitespaces to this
++        if token.strip() in no_split_tokens:
++            tokenized_text.append(token)
++        else:
++            normalized_text = tokenizer.normalizer.normalize_str(token)
++            morphemes = tokenizer.word_tokenizer.tokenize(normalized_text)
++            surfaces = [m.surface() for m in morphemes]
++            # Whitespace tokens will be deleted in the tokenizer.tokenize().
++            # We need to deal with them for the second condition.
++            tokenized_text.extend(_concat_whitespace_tokens(surfaces))
++    return tokenized_text
++
++
++def _concat_whitespace_tokens(tokens):
++    """concat whitespace tokens with prev/next non-ws token."""
++    ret = []
++    keep = ""
++    for t in tokens:
++        crr = keep + t
++        if crr.strip():
++            ret.append(crr)
++            keep = ""
++        elif len(ret) > 0:
++            ret[-1] += crr
++            keep = ""
++        else:
++            keep = crr
++    return ret
++
++
+ class SquadExample:
+     """
+     A single training/test example for the Squad dataset, as loaded from disk.
+@@ -712,6 +788,7 @@ class SquadExample:
+ 
+     def __init__(
+         self,
++        tokenizer,
+         qas_id,
+         question_text,
+         context_text,
+@@ -731,30 +808,56 @@ class SquadExample:
+ 
+         self.start_position, self.end_position = 0, 0
+ 
+-        doc_tokens = []
++        # doc_tokens = []
++        # char_to_word_offset = []
++        # prev_is_whitespace = True
++
++        # # Split on whitespace so that different tokens may be attributed to their original position.
++        # for c in self.context_text:
++        #     if _is_whitespace(c):
++        #         prev_is_whitespace = True
++        #     else:
++        #         if prev_is_whitespace:
++        #             doc_tokens.append(c)
++        #         else:
++        #             doc_tokens[-1] += c
++        #         prev_is_whitespace = False
++        #     char_to_word_offset.append(len(doc_tokens) - 1)
++
++        assert tokenizer.__class__.__name__ == "BertSudachipyTokenizer", \
++            "script is patched for sudachira.BertSudachipyTokenizer."
++
++        # Split text into doc_tokens using Sudachi instead of whitespace-split.
++        doc_tokens = _sudachi_tokenize(tokenizer, self.context_text)
++        # Note: char_idx is based on the "normalized" text.
+         char_to_word_offset = []
+-        prev_is_whitespace = True
+-
+-        # Split on whitespace so that different tokens may be attributed to their original position.
+-        for c in self.context_text:
+-            if _is_whitespace(c):
+-                prev_is_whitespace = True
+-            else:
+-                if prev_is_whitespace:
+-                    doc_tokens.append(c)
+-                else:
+-                    doc_tokens[-1] += c
+-                prev_is_whitespace = False
+-            char_to_word_offset.append(len(doc_tokens) - 1)
++        for i, dt in enumerate(doc_tokens):
++            char_to_word_offset.extend([i for _ in range(len(dt))])
+ 
+         self.doc_tokens = doc_tokens
+         self.char_to_word_offset = char_to_word_offset
+ 
+         # Start and end positions only has a value during evaluation.
+         if start_position_character is not None and not is_impossible:
+-            self.start_position = char_to_word_offset[start_position_character]
++            # self.start_position = char_to_word_offset[start_position_character]
++            # self.end_position = char_to_word_offset[
++            #     min(start_position_character + len(answer_text) - 1, len(char_to_word_offset) - 1)
++            # ]
++
++            end_position_character = start_position_character + len(answer_text) - 1
++            # Deal with the gep caused by the normalization:
++            # Since the normalization makes it hard to take alignment of answer texts,
++            # we get the alignment for NON-answer parts.
++            normalized_text = tokenizer.normalizer.normalize_str(self.context_text)
++            spans = textspan.align_spans(
++                [(0, start_position_character),
++                 (end_position_character + 1, len(self.context_text))],
++                self.context_text, normalized_text)
++            start_position_character_normalized = spans[0][-1][-1] if spans[0] else 0
++            end_position_character_normalized = spans[1][0][0] if spans[1] else len(normalized_text)
++            self.start_position = char_to_word_offset[start_position_character_normalized]
+             self.end_position = char_to_word_offset[
+-                min(start_position_character + len(answer_text) - 1, len(char_to_word_offset) - 1)
++                min(end_position_character_normalized, len(char_to_word_offset) - 1)
+             ]
+ 
+ 
