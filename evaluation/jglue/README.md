@@ -12,7 +12,7 @@ Results for other models are taken from [JGLUE - Baseline Score](https://github.
 | Model                       | MARC-ja | JSTS             | JNLI  | JSQuAD      | JCommonsenseQA |
 | --------------------------- | ------- | ---------------- | ----- | ----------- | -------------- |
 |                             | acc     | Pearson/Spearman | acc   | EM/F1       | acc            |
-| chiTra-1.0 (old script)     | 0.959   | 0.906/0.863      | 0.880 | -/-         | 0.781          |
+| chiTra-1.0                  | 0.956   | 0.903/0.861      | 0.882 | 0.839/0.919 | 0.788          |
 | chiTra-1.1                  | 0.960   | 0.916/0.876      | 0.900 | 0.860/0.937 | 0.840          |
 |                             |         |
 | Tohoku BERT base            | 0.958   | 0.909/0.868      | 0.899 | 0.871/0.941 | 0.808          |
