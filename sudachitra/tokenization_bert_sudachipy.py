@@ -91,7 +91,9 @@ def save_vocabulary(vocab: Dict[str, int], save_directory: str, filename_prefix:
         vocab_file = (filename_prefix + "-" if filename_prefix else "") + save_directory
     with open(vocab_file, "w", encoding="utf-8") as writer:
         for token, token_index in sorted(vocab.items(), key=lambda kv: kv[1]):
-            assert index == token_index, f"Error {vocab_file}: vocabulary indices are not consecutive, '{token}' {index} != {token_index}."
+            while index < token_index:
+                writer.write("\n")
+                index += 1
             writer.write(token + "\n")
             index += 1
     return (vocab_file,)
