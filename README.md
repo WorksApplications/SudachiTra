@@ -77,7 +77,7 @@ $ pip install sudachidict_small sudachidict_full
 ## 開発者向け / For Developers
 TBD
 
-## ライセンス / Licence
+## ライセンス / License
 
 Copyright (c) 2022 National Institute for Japanese Language and Linguistics and Works Applications Co., Ltd. All rights reserved.
 
@@ -107,5 +107,15 @@ chiTraを論文や書籍、サービスなどで引用される際には、以�
     publisher = "言語処理学会",
 }
 ```
+
+### 実験に使用したモデル / Model used for experiment
+「単語正規化による表記ゆれに頑健なBERTモデルの構築」の実験において使用したモデルを以下で公開しています。/  The model used in the experiment of "単語正規化による表記ゆれに頑健なBERTモデルの構築" is published below.
+
+| 　 Normalized          | Text     | Pretrained Model                                                                                                 |
+| ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| surface                | Wiki-40B | [tar.gz](https://sudachi.s3.ap-northeast-1.amazonaws.com/chitra/nlp2022/Wikipedia_surface.tar.gz)                |
+| normalized_and_surface | Wiki-40B | [tar.gz](https://sudachi.s3.ap-northeast-1.amazonaws.com/chitra/nlp2022/Wikipedia_normalized_and_surface.tar.gz) |
+| normalized_conjugation | Wiki-40B | [tar.gz](https://sudachi.s3.ap-northeast-1.amazonaws.com/chitra/nlp2022/Wikipedia_normalized_conjugation.tar.gz) |
+| normalized             | Wiki-40B | [tar.gz](https://sudachi.s3.ap-northeast-1.amazonaws.com/chitra/nlp2022/Wikipedia_normalized.tar.gz)             |
 
 Enjoy chiTra!
