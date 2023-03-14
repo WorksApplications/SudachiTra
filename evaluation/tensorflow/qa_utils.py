@@ -329,11 +329,7 @@ def setup_model(model_name_or_path, config, training_args, from_pt=False):
         clipnorm=training_args.max_grad_norm,
     )
 
-    def dummy_loss(y_true, y_pred):
-        return tf.reduce_mean(y_pred)
-
-    losses = {"loss": dummy_loss}
-    model.compile(optimizer=optimizer, loss=losses)
+    model.compile(optimizer=optimizer, metrics=["accuracy"])
     return model
 
 
