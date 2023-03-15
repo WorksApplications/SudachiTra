@@ -4,39 +4,83 @@ This folder contains scripts to evaluate models.
 
 # Evaluation methods
 
-## Performance with downstream tasks
+## Performance on downstream tasks
 
-Evaluate model with 3 tasks.
+We evaluated chiTra models with below 3 tasks.
 
-### Tasks
-
-- The Multilingual Amazon Reviews Corpus (Amazon)
-  - https://registry.opendata.aws/amazon-reviews-ml/
+- [The Multilingual Amazon Reviews Corpus (Amazon)](https://registry.opendata.aws/amazon-reviews-ml/)
   - Text classification task / 文章分類
-- 京都大学常識推論データセット (KUCI)
-  - https://nlp.ist.i.kyoto-u.ac.jp/?KUCI
+  - We used 'ja' subset only.
+  - We used `review_body` column as an input text and `stars` column (1 to 5) as a target class.
+- [京都大学常識推論データセット (KUCI)](https://nlp.ist.i.kyoto-u.ac.jp/?KUCI)
   - Multiple choice task / 常識推論
-- 解答可能性付き読解データセット (RCQA)
-  - http://www.cl.ecei.tohoku.ac.jp/rcqa/
-  - Question answering task (SQuAD2.0 format) / 読解
+- [解答可能性付き読解データセット (RCQA)](http://www.cl.ecei.tohoku.ac.jp/rcqa/)
+  - Question answering task (SQuAD 2.0 format) / 読解
 
 ### Steps
 
-Example for Amazon task (replace `amazon` with `kuci` or `rcqa` for other tasks):
+0. Framework
+
+We prepare evaluation scripts with `pytorch` and `tensorflow`.
+The scripts in those directories work equivalently.
+
+We prepared those scripts with reference to example code of transformers, before [v4.16.0](https://github.com/huggingface/transformers/tree/v4.16.0).
+We confirmed they works with transformers-v4.26.1, but you may need updates.
+
+1. Prepare datasets
+
+Use `convert_dataset.py` to convert datsets into suitable format.
+For KUCI and RCQA task, you need to download original data beforehand.
 
 ```bash
-# Generate dataset files for evaluation.
-# Download raw data first for KUCI and RCQA.
-python convert_dataset.py amazon --output ./datasets/amazon
-# python convert_dataset.py kuci --input /path/to/input  --output ./datasets/kuci
+python convert_dataset.py amazon --output /datasets/amazon
+python convert_dataset.py kuci --input /datasets/KUCI --output /datasets/kuci
+python convert_dataset.py rcqa --input /datasets/all-v1.0.json.gz --output /datasets/rcqa
+```
 
-# Run finetuning/prediction with hyper parameter search.
-# `run_all.sh` runs with all 3 datasets and parameters.
-# Place model files under `./bert/`.
-./run_all.sh
+By default, we assumes all 3 datasets locate at the same directory.
+We also assume the directory name of each datasets are: `amazon`, `kuci`, `rcqa` (case sensitive).
 
-# Correct test result file (for chitra surface model).
-python summary_results.py amazon ./out/chitra_surface_amazon/ --output ./summary.csv
+2. Modify script
+
+You need to modify `run_all.sh` script to set pathes to datasets and models.
+
+- IO
+  - `SCRIPT_DIR`: Path to the `SudachiTra/evaluation/pytorch` or `tensorflow`.
+  - `OUTPUT_ROOT`: Path to the directory where experiment results will be written.
+- Datasets
+  - `DATASET_ROOT`: Path to the directory where you prepared datasets.
+  - `DATASETS`: List of tasks to evaluate. Used for the output directory name.
+- Models
+  - `MODEL_ROOT`: Path to the directory where you put models to evaluate.
+    - Not neccessary if you set `MODEL_DIRS` by yourself.
+  - `MODEL_NAMES`: List of models to evaluate. Used for the output directory name.
+  - `MODEL_DIRS`: Mapping from model name to the model directory or huggingface model name.
+
+Note: You need to include `bert` in the model path to automaticaly load BERT models.
+
+3. Run and collect results.
+
+Use modified `run_all.sh` to run evaluation with each models, tasks and hyper parameters.
+
+```bash
+# Install lib
+python -m pip install -U -r /path/to/SudachiTra/evaluation/pytorch/requirements.txt
+# You need additional libraries to use touhoku-bert:
+# python -m pip install fugashi ipadic unidic_lite
+
+# Run experiment
+/path/to/SudachiTra/evaluation/pytorch/run_all.sh
+```
+
+`run_all.sh` will write outputs to directories named `[model_name]_[task_name]/[learning_rate]_[batch_size]_[num_epoch]` under the `OUTPUT_ROOT`.
+Use `summary_results.py` to gather result files of each tasks.
+
+```bash
+# Correct test result file.
+python summary_results.py amazon /output/chitra_amazon/ --output /summary/amazon.csv
+python summary_results.py kuci /output/chitra_kuci/ --output /summary/kuci.csv
+python summary_results.py rcqa /output/chitra_rcqa/ --output /summary/rcqa.csv
 ```
 
 ## Robustness to the text normalization
@@ -47,15 +91,22 @@ Ideal model should be robust to this change (outputs remain same after nomraliza
 
 ### Steps
 
-```bash
-# Generate normalized dataset.
-python convert_dataset.py amazon --output ./datasets_normalized/amazon
+Prepare text normalized datasets using `convert_dataset.py` with `--word-form` option.
+Provide chiTra tokenizer `word_form_type` to specify the normalization type.
+We used `normalized_and_surface` for our experiment.
 
-# Following steps are same to the model evaluation, but need to modify
-# dataset dir name in `run_all.sh` to `datasets_normalized` in this case.
+```bash
+python convert_dataset.py amazon --output /datasets_normalized/amazon \
+    --word-form normalized_and_surface
 ```
 
-Rest steps are same.
+Run experiments in the same way with modified datasets (see above section).
+
+# Results
+
+TBA
+
+Also check [our paper](https://github.com/WorksApplications/SudachiTra#chitra%E3%81%AE%E5%BC%95%E7%94%A8--citing-chitra).
 
 # Script Usage
 
@@ -79,23 +130,23 @@ Modify the script as you want and set PATH.
 This script has `--seed` and `--split-rate` option to randomize train/dev/test set,
 however, in our experiment we use default split (no option).
 
-### example
+### Example
 
 ```bash
 # Amazon Review
 # Raw data will be loaded from huggingface datasets hub.
-python convert_dataset.py amazon -o ./amazon
+python convert_dataset.py amazon --output ./amazon
 
 # RCQA dataset
-# Download raw data from http://www.cl.ecei.tohoku.ac.jp/rcqa/.
-python convert_dataset.py rcqa -i ./all-v1.0.json.gz -o ./rcqa
+# Download raw data from http://www.cl.ecei.tohoku.ac.jp/rcqa/ beforehand.
+python convert_dataset.py rcqa --input ./all-v1.0.json.gz --output ./rcqa
 
 # KUCI dataset
-# Download raw data from https://nlp.ist.i.kyoto-u.ac.jp/?KUCI and untar.
-python convert_dataset.py kuci -i ./KUCI/ -o ./kuci
+# Download raw data from https://nlp.ist.i.kyoto-u.ac.jp/?KUCI and untar beforehand.
+python convert_dataset.py kuci --input ./KUCI/ --output ./kuci
 ```
 
-### tokenize texts (wakati)
+### Tokenize texts (wakati)
 
 Some BERT models need texts in the dataset tokenized (wakati-gaki):
 
@@ -109,28 +160,31 @@ Note that `run_evaluation.py` also has an option to tokenize text.
 
 ```bash
 # tokenize with Juman++
-python convert_dataset.py rcqa -i ./all-v1.0.json.gz --tokenize juman
+python convert_dataset.py rcqa \
+    --input ./all-v1.0.json.gz --output ./rcqa_juman \
+    --tokenize juman
 
 # tokenize with MeCab (juman dic)
-python convert_dataset.py rcqa -i ./all-v1.0.json.gz \
+python convert_dataset.py rcqa \
+    --input ./all-v1.0.json.gz --output ./rcqa_mecab \
     --tokenize mecab --dicdir /var/lib/mecab/dic/juman-utf-8 --mecabrc /etc/mecabrc
 ```
 
-### normalize texts
+### Normalize texts
 
-To check an impact of the normalization, we evaluate models with datasets whose texts are normalized.
-`convert_dataset.py` has option for that.
+You can use `convert_dataset.py` to generate datasets for [testing model robustness](#robustness-to-the-text-normalization).
 
-Use `--word-form` option to apply sudachitra normalization to texts.
+Provide `word_form_type` using `--word-form` option to apply sudachitra normalization to texts in datasets.
 We used `normalized_and_surface` for our experiment.
 
 ```bash
-python convert_dataset.py amazon --word-form normalized_and_surface
+python convert_dataset.py amazon --output ./amazon_normalized \
+    --word-form normalized_and_surface
 ```
 
 ## run_evaluation.py
 
-`run_evaluation.py` is a script to run a single evaluation (with single model, dataset, hyper-parameters).
+`run_evaluation.py` is a script to run a single evaluation (with single model, dataset, set of hyper parameters).
 
 Note:
 
@@ -141,7 +195,7 @@ Note:
   - Dataset preprocessing will generate a cache file with random hash due to the our non-picklable conversion.
   - The random hash become same if you use same seed due to the set_seed.
 
-### example
+### Example
 
 Template
 
@@ -224,7 +278,7 @@ python ./run_evaluation.py \
 
 ## run_all.sh
 
-`run_all.sh` is a script to run `run_evaluation.py` with different models and hyper parameters.
+`run_all.sh` is a script to run `run_evaluation.py` with different models, tasks and hyper parameters.
 
 This assumes all model files are placed in the same directory (and named `bert` for `run_evaluation.py`), and all 3 datasets are placed in another directory.
 You will need to set those directories in the script for your environment.
@@ -241,7 +295,7 @@ test results of models with each hyper-parameters.
 It requires the input directory has a structure generated by `run_all.sh`, i.e.:
 
 ```
-input_dir
+[model and task dir (e.g. "chitra_amazon")]
 ├── [hyper-parameter dirs (ex. "5e-5_32_3")]
 │   ├── [validation result file]
 │   └── [test result file]
