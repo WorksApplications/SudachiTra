@@ -13,7 +13,8 @@ chiTraはSuda**chi Tra**nsformersの略称です。 / chiTra stands for Suda**ch
 
 | Version | Normalized             | SudachiTra | Sudachi | SudachiDict   | Text         | Pretrained Model                                                                            |
 | ------- | ---------------------- | ---------- | ------- | ------------- | ------------ | ------------------------------------------------------------------------------------------- |
-| v1.0    | normalized_and_surface | v0.1.7     | 0.6.2   | 20211220-core | NWJC (148GB) | 395 MB ([tar.gz](https://sudachi.s3.ap-northeast-1.amazonaws.com/chitra/chiTra-1.0.tar.gz)) | 
+| v1.0    | normalized_and_surface | v0.1.7     | 0.6.2   | 20211220-core | NWJC (109GB) | 395 MB ([tar.gz](https://sudachi.s3.ap-northeast-1.amazonaws.com/chitra/chiTra-1.0.tar.gz)) | 
+| v1.1    | normalized_nouns       | v0.1.8     | 0.6.6   | 20220729-core | NWJC with additional cleaning (79GB) | 396 MB ([tar.gz](https://sudachi.s3.ap-northeast-1.amazonaws.com/chitra/chiTra-1.1.tar.gz)) |
 
 ### 特長 / Features
 - 大規模テキストによる学習 / Training on large texts
@@ -27,8 +28,8 @@ chiTraはSuda**chi Tra**nsformersの略称です。 / chiTra stands for Suda**ch
 事前準備 / Requirements
 ```bash
 $ pip install sudachitra
-$ wget https://sudachi.s3.ap-northeast-1.amazonaws.com/chitra/chiTra-1.0.tar.gz
-$ tar -zxvf chiTra-1.0.tar.gz
+$ wget https://sudachi.s3.ap-northeast-1.amazonaws.com/chitra/chiTra-1.1.tar.gz
+$ tar -zxvf chiTra-1.1.tar.gz
 ```
 
 モデルの読み込み / Load the model
@@ -36,11 +37,11 @@ $ tar -zxvf chiTra-1.0.tar.gz
 >>> from sudachitra.tokenization_bert_sudachipy import BertSudachipyTokenizer
 >>> from transformers import BertModel
 
->>> tokenizer = BertSudachipyTokenizer.from_pretrained('chiTra-1.0')
+>>> tokenizer = BertSudachipyTokenizer.from_pretrained('chiTra-1.1')
 >>> tokenizer.tokenize("選挙管理委員会とすだち")
 ['選挙', '##管理', '##委員会', 'と', '酢', '##橘']
 
->>> model = BertModel.from_pretrained('chiTra-1.0')
+>>> model = BertModel.from_pretrained('chiTra-1.1')
 >>> model(**tokenizer("まさにオールマイティーな商品だ。", return_tensors="pt")).last_hidden_state
 tensor([[[ 0.8583, -1.1752, -0.7987,  ..., -1.1691, -0.8355,  3.4678],
          [ 0.0220,  1.1702, -2.3334,  ...,  0.6673, -2.0774,  2.7731],
@@ -76,7 +77,7 @@ $ pip install sudachidict_small sudachidict_full
 ## 開発者向け / For Developers
 TBD
 
-## ライセンス / Licence
+## ライセンス / License
 
 Copyright (c) 2022 National Institute for Japanese Language and Linguistics and Works Applications Co., Ltd. All rights reserved.
 
@@ -92,8 +93,7 @@ https://sudachi-dev.slack.com/ ( [こちら](https://join.slack.com/t/sudachi-de
 
 
 ## chiTraの引用 / Citing chiTra
-chiTraについての論文を発表しています。 / Citing chiTra
-We have published a following paper about chiTra;
+chiTraについての論文を発表しています。 / We have published a following paper about chiTra;
 - 勝田哲弘, 林政義, 山村崇, Tolmachev Arseny, 高岡一馬, 内田佳孝, 浅原正幸, 単語正規化による表記ゆれに頑健な BERT モデルの構築. 言語処理学会第28回年次大会, 2022.
 
 chiTraを論文や書籍、サービスなどで引用される際には、以下のBibTexをご利用ください。 / When citing chiTra in papers, books, or services, please use the follow BibTex entries;
@@ -107,5 +107,15 @@ chiTraを論文や書籍、サービスなどで引用される際には、以�
     publisher = "言語処理学会",
 }
 ```
+
+### 実験に使用したモデル / Model used for experiment
+「単語正規化による表記ゆれに頑健なBERTモデルの構築」の実験において使用したモデルを以下で公開しています。/  The model used in the experiment of "単語正規化による表記ゆれに頑健なBERTモデルの構築" is published below.
+
+| 　 Normalized          | Text     | Pretrained Model                                                                                                 |
+| ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| surface                | Wiki-40B | [tar.gz](https://sudachi.s3.ap-northeast-1.amazonaws.com/chitra/nlp2022/Wikipedia_surface.tar.gz)                |
+| normalized_and_surface | Wiki-40B | [tar.gz](https://sudachi.s3.ap-northeast-1.amazonaws.com/chitra/nlp2022/Wikipedia_normalized_and_surface.tar.gz) |
+| normalized_conjugation | Wiki-40B | [tar.gz](https://sudachi.s3.ap-northeast-1.amazonaws.com/chitra/nlp2022/Wikipedia_normalized_conjugation.tar.gz) |
+| normalized             | Wiki-40B | [tar.gz](https://sudachi.s3.ap-northeast-1.amazonaws.com/chitra/nlp2022/Wikipedia_normalized.tar.gz)             |
 
 Enjoy chiTra!
