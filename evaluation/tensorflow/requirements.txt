@@ -1,0 +1,16 @@
+sudachitra
+
+# frameworks
+tensorflow
+torch
+transformers
+tokenizers
+datasets
+
+# QA task
+pytextspan
+
+# Japanese tokenizers
+mecab-python3
+mojimoji
+pyknp
