@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Tuple
 from sudachipy.morpheme import Morpheme
 from transformers.models.bert_japanese.tokenization_bert_japanese import CharacterTokenizer
 from transformers.models.bert.tokenization_bert import WordpieceTokenizer
-from transformers.tokenization_utils import PreTrainedTokenizer
+from transformers.tokenization_utils import AddedToken, PreTrainedTokenizer
 
 from .input_string_normalizer import InputStringNormalizer
 from .sudachipy_word_tokenizer import SudachipyWordTokenizer
@@ -152,22 +152,11 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
             sudachipy_kwargs=None,
             **kwargs
     ):
-        super().__init__(
-            do_lower_case=do_lower_case,
-            do_nfkc=do_nfkc,
-            do_word_tokenize=do_word_tokenize,
-            do_subword_tokenize=do_subword_tokenize,
-            word_tokenizer_type=word_tokenizer_type,
-            subword_tokenizer_type=subword_tokenizer_type,
-            unk_token=unk_token,
-            sep_token=sep_token,
-            pad_token=pad_token,
-            cls_token=cls_token,
-            mask_token=mask_token,
-            word_form_type=word_form_type,
-            sudachipy_kwargs=sudachipy_kwargs,
-            **kwargs,
-        )
+        unk_token = AddedToken(unk_token, lstrip=False, rstrip=False) if isinstance(unk_token, str) else unk_token
+        sep_token = AddedToken(sep_token, lstrip=False, rstrip=False) if isinstance(sep_token, str) else sep_token
+        pad_token = AddedToken(pad_token, lstrip=False, rstrip=False) if isinstance(pad_token, str) else pad_token
+        cls_token = AddedToken(cls_token, lstrip=False, rstrip=False) if isinstance(cls_token, str) else cls_token
+        mask_token = AddedToken(mask_token, lstrip=False, rstrip=False) if isinstance(mask_token, str) else mask_token
 
         if not os.path.isfile(vocab_file):
             raise ValueError(f"Can't find a vocabulary file at path '{vocab_file}'.")
@@ -189,6 +178,23 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
         self.word_tokenizer = SudachipyWordTokenizer(**(self.sudachipy_kwargs or {}))
         self.word_form_type = word_form_type
         self.word_formatter = word_formatter(self.word_form_type, self.word_tokenizer.sudachi_dict)
+
+        super().__init__(
+            do_lower_case=do_lower_case,
+            do_nfkc=do_nfkc,
+            do_word_tokenize=do_word_tokenize,
+            do_subword_tokenize=do_subword_tokenize,
+            word_tokenizer_type=word_tokenizer_type,
+            subword_tokenizer_type=subword_tokenizer_type,
+            unk_token=unk_token,
+            sep_token=sep_token,
+            pad_token=pad_token,
+            cls_token=cls_token,
+            mask_token=mask_token,
+            word_form_type=word_form_type,
+            sudachipy_kwargs=sudachipy_kwargs,
+            **kwargs,
+        )
 
         self.do_subword_tokenize = do_subword_tokenize
         self.subword_tokenizer_type = subword_tokenizer_type
