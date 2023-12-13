@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Tuple
 from sudachipy.morpheme import Morpheme
 from transformers.models.bert_japanese.tokenization_bert_japanese import CharacterTokenizer
 from transformers.models.bert.tokenization_bert import WordpieceTokenizer
-from transformers.tokenization_utils import AddedToken, PreTrainedTokenizer
+from transformers.tokenization_utils import PreTrainedTokenizer
 
 from .input_string_normalizer import InputStringNormalizer
 from .sudachipy_word_tokenizer import SudachipyWordTokenizer
@@ -152,11 +152,6 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
             sudachipy_kwargs=None,
             **kwargs
     ):
-        unk_token = AddedToken(unk_token, lstrip=False, rstrip=False) if isinstance(unk_token, str) else unk_token
-        sep_token = AddedToken(sep_token, lstrip=False, rstrip=False) if isinstance(sep_token, str) else sep_token
-        pad_token = AddedToken(pad_token, lstrip=False, rstrip=False) if isinstance(pad_token, str) else pad_token
-        cls_token = AddedToken(cls_token, lstrip=False, rstrip=False) if isinstance(cls_token, str) else cls_token
-        mask_token = AddedToken(mask_token, lstrip=False, rstrip=False) if isinstance(mask_token, str) else mask_token
 
         if not os.path.isfile(vocab_file):
             raise ValueError(f"Can't find a vocabulary file at path '{vocab_file}'.")
@@ -179,6 +174,18 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
         self.word_form_type = word_form_type
         self.word_formatter = word_formatter(self.word_form_type, self.word_tokenizer.sudachi_dict)
 
+        self.do_subword_tokenize = do_subword_tokenize
+        self.subword_tokenizer_type = subword_tokenizer_type
+        if do_subword_tokenize:
+            if subword_tokenizer_type == "pos_substitution":
+                self.subword_tokenizer = None
+            elif subword_tokenizer_type == "wordpiece":
+                self.subword_tokenizer = WordpieceTokenizer(vocab=self.vocab, unk_token=str(unk_token))
+            elif subword_tokenizer_type == "character":
+                self.subword_tokenizer = CharacterTokenizer(vocab=self.vocab, unk_token=str(unk_token))
+            else:
+                raise ValueError(f"Invalid subword_tokenizer_type '{subword_tokenizer_type}' is specified.")
+
         super().__init__(
             do_lower_case=do_lower_case,
             do_nfkc=do_nfkc,
@@ -196,17 +203,6 @@ class BertSudachipyTokenizer(PreTrainedTokenizer):
             **kwargs,
         )
 
-        self.do_subword_tokenize = do_subword_tokenize
-        self.subword_tokenizer_type = subword_tokenizer_type
-        if do_subword_tokenize:
-            if subword_tokenizer_type == "pos_substitution":
-                self.subword_tokenizer = None
-            elif subword_tokenizer_type == "wordpiece":
-                self.subword_tokenizer = WordpieceTokenizer(vocab=self.vocab, unk_token=self.unk_token)
-            elif subword_tokenizer_type == "character":
-                self.subword_tokenizer = CharacterTokenizer(vocab=self.vocab, unk_token=self.unk_token)
-            else:
-                raise ValueError(f"Invalid subword_tokenizer_type '{subword_tokenizer_type}' is specified.")
 
     @property
     def do_lower_case(self):
